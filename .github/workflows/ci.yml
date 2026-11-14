@@ -1,0 +1,88 @@
+
+name: HRM CI
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - staging
+      - feature/**
+  pull_request:
+    branches:
+      - main
+      - develop
+      - staging
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hrm-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: hrm_db
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d hrm_db"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DB_URL: jdbc:postgresql://localhost:5432/hrm_db
+      DB_USERNAME: postgres
+      DB_PASSWORD: ci_test_password
+      JWT_SECRET: ci-only-jwt-secret-key-at-least-32-bytes
+      EMPLOYEE_REGISTRATION_CODE: ci-test-registration-code
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Make Maven wrapper executable
+        working-directory: backend
+        run: chmod +x mvnw
+
+      - name: Build and test backend
+        working-directory: backend
+        run: ./mvnw -B verify
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run frontend lint
+        working-directory: frontend
+        run: npm run lint
+
+      - name: Build frontend
+        working-directory: frontend
+        run: npm run build
