@@ -1,0 +1,15 @@
+$kind: http-request
+name: http://localhost:8080/api/admin/leaves/4/review
+description: ""
+url: http://localhost:8080/api/admin/leaves/4/review
+method: PATCH
+body:
+  type: json
+  content: "{\r
+
+    \    \"status\": \"APPROVED\",\r
+
+    \    \"remarks\": \"Approved by HR admin\"\r
+
+    }"
+order: 9000

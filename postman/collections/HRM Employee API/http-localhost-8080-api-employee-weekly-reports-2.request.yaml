@@ -1,0 +1,23 @@
+$kind: http-request
+name: http://localhost:8080/api/employee/weekly-reports
+description: ""
+url: http://localhost:8080/api/employee/weekly-reports
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"reportDate\": \"2026-11-12\",\r
+
+    \  \"profilesSubmitted\": 10,\r
+
+    \  \"interviewsScheduled\": 5,\r
+
+    \  \"finalSelections\": 2,\r
+
+    \  \"joined\": 1,\r
+
+    \  \"revenueGenerated\": 10000\r
+
+    }"
+order: 49000

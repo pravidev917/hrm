@@ -1,0 +1,174 @@
+
+package com.hrm.backend.controller;
+
+import com.hrm.backend.dto.DailyReportResponseDTO;
+import com.hrm.backend.entity.DailyReport;
+import com.hrm.backend.service.AdminService;
+import com.hrm.backend.service.DailyReportService;
+import com.hrm.backend.service.EmployeeService;
+
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
+import java.util.List;
+
+@RestController
+@RequestMapping("/api")
+public class DailyReportController {
+
+    private final DailyReportService reportService;
+    private final AdminService adminService;
+    private final EmployeeService employeeService;
+
+    public DailyReportController(
+            DailyReportService reportService,
+            AdminService adminService,
+            EmployeeService employeeService) {
+
+        this.reportService = reportService;
+        this.adminService = adminService;
+        this.employeeService = employeeService;
+    }
+
+    // =========================
+    // EMPLOYEE DAILY REPORTS
+    // =========================
+
+    @PostMapping("/employee/reports")
+    public ResponseEntity<DailyReportResponseDTO> createReport(
+            @RequestParam Long clientId,
+            @RequestBody DailyReport report,
+            Authentication authentication) {
+
+        Long employeeId = employeeService.getEmployeeIdByEmail(
+                authentication.getName());
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(reportService.createReport(
+                        employeeId, clientId, report));
+    }
+
+    @GetMapping("/employee/reports")
+    public ResponseEntity<List<DailyReportResponseDTO>> getEmployeeReports(
+            Authentication authentication) {
+
+        Long employeeId = employeeService.getEmployeeIdByEmail(
+                authentication.getName());
+
+        return ResponseEntity.ok(
+                reportService.getReportsByEmployee(employeeId));
+    }
+
+    @GetMapping("/employee/reports/{reportId}")
+    public ResponseEntity<DailyReportResponseDTO> getEmployeeReport(
+            @PathVariable Long reportId,
+            Authentication authentication) {
+
+        Long employeeId = employeeService.getEmployeeIdByEmail(
+                authentication.getName());
+
+        return ResponseEntity.ok(
+                reportService.getEmployeeReport(reportId, employeeId));
+    }
+
+    @GetMapping("/employee/reports/date-range")
+    public ResponseEntity<List<DailyReportResponseDTO>>
+    getEmployeeReportsByDateRange(
+            @RequestParam
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate startDate,
+
+            @RequestParam
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate endDate,
+
+            Authentication authentication) {
+
+        Long employeeId = employeeService.getEmployeeIdByEmail(
+                authentication.getName());
+
+        return ResponseEntity.ok(
+                reportService.getReportsByDateRange(
+                        employeeId, startDate, endDate));
+    }
+
+    @PutMapping("/employee/reports/{reportId}")
+    public ResponseEntity<DailyReportResponseDTO> updateEmployeeReport(
+            @PathVariable Long reportId,
+            @RequestParam(required = false) Long clientId,
+            @RequestBody DailyReport report,
+            Authentication authentication) {
+
+        Long employeeId = employeeService.getEmployeeIdByEmail(
+                authentication.getName());
+
+        return ResponseEntity.ok(
+                reportService.updateReport(
+                        reportId, employeeId, clientId, report));
+    }
+
+    @DeleteMapping("/employee/reports/{reportId}")
+    public ResponseEntity<Void> deleteEmployeeReport(
+            @PathVariable Long reportId,
+            Authentication authentication) {
+
+        Long employeeId = employeeService.getEmployeeIdByEmail(
+                authentication.getName());
+
+        reportService.deleteReport(reportId, employeeId);
+
+        return ResponseEntity.noContent().build();
+    }
+
+    // =========================
+    // ADMIN DAILY REPORTS
+    // =========================
+
+    @GetMapping("/admin/reports")
+    public ResponseEntity<List<DailyReportResponseDTO>> getAdminReports(
+            Authentication authentication) {
+
+        Long adminId = adminService.getAdminIdByEmail(
+                authentication.getName());
+
+        return ResponseEntity.ok(
+                reportService.getReportsByAdmin(adminId));
+    }
+
+    @GetMapping("/admin/reports/{reportId}")
+    public ResponseEntity<DailyReportResponseDTO> getAdminReport(
+            @PathVariable Long reportId,
+            Authentication authentication) {
+
+        Long adminId = adminService.getAdminIdByEmail(
+                authentication.getName());
+
+        return ResponseEntity.ok(
+                reportService.getAdminReport(reportId, adminId));
+    }
+
+    @GetMapping("/admin/reports/date-range")
+    public ResponseEntity<List<DailyReportResponseDTO>>
+    getAdminReportsByDateRange(
+            @RequestParam
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate startDate,
+
+            @RequestParam
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate endDate,
+
+            Authentication authentication) {
+
+        Long adminId = adminService.getAdminIdByEmail(
+                authentication.getName());
+
+        return ResponseEntity.ok(
+                reportService.getAdminReportsByDateRange(
+                        adminId, startDate, endDate));
+    }
+}

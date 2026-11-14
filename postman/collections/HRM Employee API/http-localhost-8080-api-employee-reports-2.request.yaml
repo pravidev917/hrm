@@ -1,0 +1,31 @@
+$kind: http-request
+name: http://localhost:8080/api/employee/reports
+description: ""
+url: http://localhost:8080/api/employee/reports?clientId=1
+method: POST
+queryParams:
+  clientId: "1"
+body:
+  type: json
+  content: "{\r
+
+    \  \"profilesSubmitted\": -5,\r
+
+    \  \"candidatesSourced\": 10,\r
+
+    \  \"candidatesContacted\": 8,\r
+
+    \  \"connectedCount\": 4,\r
+
+    \  \"reportDate\": \"2026-11-12\",\r
+
+    \  \"remarks\": \"Testing negative count validation\"\r
+
+    }"
+settings:
+  protocolVersion: auto
+  strictSSL: false
+  followRedirects: true
+  disableCookies: false
+  maxResponseSize: 52428800
+order: 59000

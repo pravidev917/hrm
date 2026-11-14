@@ -1,0 +1,11 @@
+$kind: collection
+name: HRM Employee API
+variables:
+  - key: base_url
+    value: 'http://localhost:8080'
+  - key: employee_email
+    value: 'rahul@hrm.com'
+  - key: employee_password
+    value: 'Rahul@12345'
+  - key: hrm_auth_token
+    value: ''

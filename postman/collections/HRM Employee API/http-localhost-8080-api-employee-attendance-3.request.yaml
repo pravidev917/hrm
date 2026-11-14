@@ -1,0 +1,6 @@
+$kind: http-request
+name: http://localhost:8080/api/employee/attendance
+description: ""
+url: http://localhost:8080/api/employee/attendance
+method: GET
+order: 37000

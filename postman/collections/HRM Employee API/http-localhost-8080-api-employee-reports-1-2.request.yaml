@@ -1,0 +1,23 @@
+$kind: http-request
+name: http://localhost:8080/api/employee/reports/1
+description: ""
+url: http://localhost:8080/api/employee/reports/1
+method: PUT
+body:
+  type: json
+  content: "{\r
+
+    \    \"profilesSubmitted\": 12,\r
+
+    \    \"candidatesSourced\": 25,\r
+
+    \    \"candidatesContacted\": 18,\r
+
+    \    \"connectedCount\": 10,\r
+
+    \    \"reportDate\": \"2026-11-13\",\r
+
+    \    \"remarks\": \"Updated recruitment progress for Java Developer positions.\"\r
+
+    }"
+order: 85000

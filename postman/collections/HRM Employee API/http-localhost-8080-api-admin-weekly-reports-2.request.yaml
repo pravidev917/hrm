@@ -1,0 +1,6 @@
+$kind: http-request
+name: http://localhost:8080/api/admin/weekly-reports/2
+description: ""
+url: http://localhost:8080/api/admin/weekly-reports/2
+method: DELETE
+order: 41000

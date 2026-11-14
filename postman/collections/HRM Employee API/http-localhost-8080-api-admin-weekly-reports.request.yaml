@@ -1,0 +1,6 @@
+$kind: http-request
+name: http://localhost:8080/api/admin/weekly-reports
+description: ""
+url: http://localhost:8080/api/admin/weekly-reports
+method: GET
+order: 45000

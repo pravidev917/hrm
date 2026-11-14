@@ -1,0 +1,15 @@
+$kind: http-request
+name: http://localhost:8080/api/admin/leaves/2/review
+description: ""
+url: http://localhost:8080/api/admin/leaves/2/review
+method: PATCH
+body:
+  type: json
+  content: "{\r
+
+    \    \"status\": \"REJECTED\",\r
+
+    \    \"remarks\": \"Insufficient staffing during the requested period\"\r
+
+    }"
+order: 8000

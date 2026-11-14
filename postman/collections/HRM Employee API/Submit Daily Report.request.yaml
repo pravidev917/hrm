@@ -1,0 +1,45 @@
+$kind: http-request
+method: POST
+url: http://localhost:8080/api/auth/employee/login
+order: 1000
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "email": "rahul@hrm.com",
+      "password": "Rahul@12345"
+    }
+scripts:
+  - type: beforeRequest
+    code: |-
+      pm.sendRequest({
+          url: pm.collectionVariables.get('base_url') + '/api/auth/employee/login',
+          method: 'POST',
+          header: [{ key: 'Content-Type', value: 'application/json' }],
+          body: {
+              mode: 'raw',
+              raw: JSON.stringify({
+                  email: pm.collectionVariables.get('employee_email'),
+                  password: pm.collectionVariables.get('employee_password')
+              })
+          }
+      }, function(err, res) {
+          if (!err && res.code === 200) {
+              var headers = res.headers.all();
+              for (var i = 0; i < headers.length; i++) {
+                  if (headers[i].key.toLowerCase() === 'set-cookie') {
+                      var match = headers[i].value.match(/HRM_AUTH=([^;]+)/);
+                      if (match) {
+                          pm.request.headers.upsert({
+                              key: 'Cookie',
+                              value: 'HRM_AUTH=' + match[1]
+                          });
+                          break;
+                      }
+                  }
+              }
+          }
+      });
+    language: text/javascript

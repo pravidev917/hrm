@@ -1,0 +1,6 @@
+$kind: http-request
+name: http://localhost:8080/api/auth/me
+description: ""
+url: http://localhost:8080/api/auth/me
+method: GET
+order: 90000

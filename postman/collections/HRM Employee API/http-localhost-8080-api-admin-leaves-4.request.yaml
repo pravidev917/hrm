@@ -1,0 +1,6 @@
+$kind: http-request
+name: http://localhost:8080/api/admin/leaves/4
+description: ""
+url: http://localhost:8080/api/admin/leaves/4
+method: GET
+order: 10000

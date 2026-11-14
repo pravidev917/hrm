@@ -1,0 +1,25 @@
+$kind: http-request
+name: http://localhost:8080/api/employee/reports
+description: ""
+url: http://localhost:8080/api/employee/reports?clientId=1
+method: POST
+queryParams:
+  clientId: "1"
+body:
+  type: json
+  content: "{\r
+
+    \  \"profilesSubmitted\": 12,\r
+
+    \  \"candidatesSourced\": 20,\r
+
+    \  \"candidatesContacted\": 15,\r
+
+    \  \"connectedCount\": 8,\r
+
+    \  \"reportDate\": \"2026-11-12\",\r
+
+    \  \"remarks\": \"Valid daily report test\"\r
+
+    }"
+order: 57000

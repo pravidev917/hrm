@@ -1,0 +1,6 @@
+$kind: http-request
+name: http://localhost:8080/api/employee/leaves
+description: ""
+url: http://localhost:8080/api/employee/leaves
+method: GET
+order: 23000

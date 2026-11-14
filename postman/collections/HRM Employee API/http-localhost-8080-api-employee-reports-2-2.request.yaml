@@ -1,0 +1,23 @@
+$kind: http-request
+name: http://localhost:8080/api/employee/reports/2
+description: ""
+url: http://localhost:8080/api/employee/reports/2
+method: PUT
+body:
+  type: json
+  content: "{\r
+
+    \    \"profilesSubmitted\": 10,\r
+
+    \    \"candidatesSourced\": 20,\r
+
+    \    \"candidatesContacted\": 15,\r
+
+    \    \"connectedCount\": 8,\r
+
+    \    \"reportDate\": \"2026-11-13\",\r
+
+    \    \"remarks\": \"Updated daily report successfully.\"\r
+
+    }"
+order: 70000

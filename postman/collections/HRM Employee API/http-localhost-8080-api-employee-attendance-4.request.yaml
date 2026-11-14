@@ -1,0 +1,11 @@
+$kind: http-request
+name: http://localhost:8080/api/employee/attendance
+description: ""
+url: http://localhost:8080/api/employee/attendance?status=PRESENT
+method: POST
+queryParams:
+  status: PRESENT
+body:
+  type: json
+  content: ""
+order: 38000
