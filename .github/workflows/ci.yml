@@ -46,7 +46,6 @@ jobs:
       DB_USERNAME: postgres
       DB_PASSWORD: ci_test_password
       JWT_SECRET: ci-only-jwt-secret-key-at-least-32-bytes
-      EMPLOYEE_REGISTRATION_CODE: ci-test-registration-code
 
     steps:
       - name: Checkout repository

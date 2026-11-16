@@ -3,12 +3,16 @@ package com.hrm.backend.controller;
 
 import com.hrm.backend.dto.AuthResponse;
 import com.hrm.backend.dto.EmployeeResponseDTO;
+import com.hrm.backend.dto.EmployeeUpdateRequest;
 import com.hrm.backend.entity.Employee;
 import com.hrm.backend.service.AdminService;
 import com.hrm.backend.service.AuthService;
 import com.hrm.backend.service.EmployeeService;
 
+import jakarta.validation.Valid;
+
 import org.springframework.http.ResponseEntity;
+import org.springframework.data.domain.Page;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -79,6 +83,31 @@ public class AdminController {
         return ResponseEntity.ok(employees);
     }
 
+    /**
+     * Paged / searched / sorted employee list.
+     * Returns a Spring Page envelope: { content, page, size, totalElements, totalPages }.
+     */
+    @GetMapping("/employees/page")
+    public ResponseEntity<Page<EmployeeResponseDTO>> getEmployeesPage(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String status,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String direction,
+            Authentication authentication) {
+
+        Long adminId = adminService.getAdminIdByEmail(
+                authentication.getName()
+        );
+
+        Page<EmployeeResponseDTO> result = employeeService
+                .searchEmployeesByAdmin(adminId, search, status, page, size, sortBy, direction)
+                .map(EmployeeResponseDTO::from);
+
+        return ResponseEntity.ok(result);
+    }
+
     // EMPLOYEE PROFILE
 
     @GetMapping("/employees/{employeeId}")
@@ -105,7 +134,7 @@ public class AdminController {
     @PutMapping("/employees/{employeeId}")
     public ResponseEntity<EmployeeResponseDTO> updateEmployee(
             @PathVariable Long employeeId,
-            @RequestBody Employee employee,
+            @Valid @RequestBody EmployeeUpdateRequest request,
             Authentication authentication) {
 
         Long adminId = adminService.getAdminIdByEmail(
@@ -115,7 +144,7 @@ public class AdminController {
         Employee updated = employeeService.updateEmployee(
                 employeeId,
                 adminId,
-                employee
+                request
         );
 
         return ResponseEntity.ok(

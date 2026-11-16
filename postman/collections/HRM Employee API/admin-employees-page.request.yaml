@@ -1,0 +1,10 @@
+$kind: http-request
+name: Employees list - paged, searched, sorted (new)
+description: >-
+  Paged employee list scoped to the signed-in administrator. Returns a Spring
+  Page envelope: content, page, size, totalElements, totalPages.
+  search matches name/email/designation/phone, status filters the account state,
+  sortBy is one of employeeName|email|role|accountStatus|createdAt|updatedAt.
+url: '{{baseUrl}}/api/admin/employees/page?search=&status=APPROVED&page=0&size=10&sortBy=employeeName&direction=asc'
+method: GET
+order: 20010
