@@ -1,0 +1,9 @@
+$kind: http-request
+name: My leave balance and history (new)
+description: >-
+  Days taken and pending for the current year, a per-type breakdown, and the
+  review history (decision, who decided, remarks, when). No annual allowance is
+  included because this system stores no leave-entitlement policy.
+url: '{{baseUrl}}/api/employee/leaves/balance'
+method: GET
+order: 20040

@@ -1,6 +1,7 @@
 package com.hrm.backend.controller;
 
 import com.hrm.backend.dto.LeaveRequestDTO;
+import com.hrm.backend.dto.LeaveBalanceDTO;
 import com.hrm.backend.dto.LeaveReviewDTO;
 import com.hrm.backend.dto.LeaveResponseDTO;
 import com.hrm.backend.entity.LeaveManagement;
@@ -98,6 +99,20 @@ public class LeaveManagementController {
                 .toList();
 
         return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Leave position and review history for the signed-in employee.
+     * No annual entitlement is reported because none is configured in this system.
+     */
+    @GetMapping("/api/employee/leaves/balance")
+    public ResponseEntity<LeaveBalanceDTO> getEmployeeLeaveBalance(
+            Authentication authentication) {
+
+        Long employeeId = employeeService.getEmployeeIdByEmail(
+                authentication.getName());
+
+        return ResponseEntity.ok(leaveService.getLeaveBalance(employeeId));
     }
 
     @GetMapping("/api/employee/leaves/{leaveId}")

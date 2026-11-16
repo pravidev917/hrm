@@ -1,0 +1,9 @@
+$kind: http-request
+name: My clients - employee (new)
+description: >-
+  Active clients of the employee's own administrator, so daily reports can be
+  filed against a real client instead of a typed-in client ID.
+  Scope is derived from the signed-in employee's admin, never from the request.
+url: '{{baseUrl}}/api/employee/clients'
+method: GET
+order: 20030

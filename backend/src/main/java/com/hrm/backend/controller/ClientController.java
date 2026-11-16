@@ -1,6 +1,7 @@
 
 package com.hrm.backend.controller;
 
+import com.hrm.backend.dto.ClientResponseDTO;
 import com.hrm.backend.entity.Admin;
 import com.hrm.backend.entity.Client;
 import com.hrm.backend.service.AdminService;
@@ -30,7 +31,7 @@ public class ClientController {
 
     // Create client
     @PostMapping
-    public ResponseEntity<Client> createClient(
+    public ResponseEntity<ClientResponseDTO> createClient(
             @RequestBody Client client,
             Authentication authentication) {
 
@@ -42,12 +43,12 @@ public class ClientController {
         client.setStatus("ACTIVE");
 
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(clientService.createClient(client));
+                .body(ClientResponseDTO.from(clientService.createClient(client)));
     }
 
     // List all clients belonging to logged-in admin
     @GetMapping
-    public ResponseEntity<List<Client>> getClients(
+    public ResponseEntity<List<ClientResponseDTO>> getClients(
             Authentication authentication) {
 
         Long adminId = adminService.getAdminIdByEmail(
@@ -56,12 +57,15 @@ public class ClientController {
 
         return ResponseEntity.ok(
                 clientService.getClientsByAdmin(adminId)
+                        .stream()
+                        .map(ClientResponseDTO::from)
+                        .toList()
         );
     }
 
     // Get client profile
     @GetMapping("/{clientId}")
-    public ResponseEntity<Client> getClient(
+    public ResponseEntity<ClientResponseDTO> getClient(
             @PathVariable Long clientId,
             Authentication authentication) {
 
@@ -70,13 +74,13 @@ public class ClientController {
         );
 
         return ResponseEntity.ok(
-                clientService.getClientById(clientId, adminId)
+                ClientResponseDTO.from(clientService.getClientById(clientId, adminId))
         );
     }
 
     // Update client
     @PutMapping("/{clientId}")
-    public ResponseEntity<Client> updateClient(
+    public ResponseEntity<ClientResponseDTO> updateClient(
             @PathVariable Long clientId,
             @RequestBody Client client,
             Authentication authentication) {
@@ -86,13 +90,13 @@ public class ClientController {
         );
 
         return ResponseEntity.ok(
-                clientService.updateClient(clientId, adminId, client)
+                ClientResponseDTO.from(clientService.updateClient(clientId, adminId, client))
         );
     }
 
     // Activate client
     @PatchMapping("/{clientId}/activate")
-    public ResponseEntity<Client> activateClient(
+    public ResponseEntity<ClientResponseDTO> activateClient(
             @PathVariable Long clientId,
             Authentication authentication) {
 
@@ -101,13 +105,13 @@ public class ClientController {
         );
 
         return ResponseEntity.ok(
-                clientService.activateClient(clientId, adminId)
+                ClientResponseDTO.from(clientService.activateClient(clientId, adminId))
         );
     }
 
     // Deactivate client
     @PatchMapping("/{clientId}/deactivate")
-    public ResponseEntity<Client> deactivateClient(
+    public ResponseEntity<ClientResponseDTO> deactivateClient(
             @PathVariable Long clientId,
             Authentication authentication) {
 
@@ -116,12 +120,12 @@ public class ClientController {
         );
 
         return ResponseEntity.ok(
-                clientService.deactivateClient(clientId, adminId)
+                ClientResponseDTO.from(clientService.deactivateClient(clientId, adminId))
         );
     }
     // Search clients by name
 @GetMapping("/search")
-public ResponseEntity<List<Client>> searchClients(
+public ResponseEntity<List<ClientResponseDTO>> searchClients(
         @RequestParam String name,
         Authentication authentication) {
 
@@ -131,6 +135,9 @@ public ResponseEntity<List<Client>> searchClients(
 
     return ResponseEntity.ok(
             clientService.searchClients(adminId, name)
+                    .stream()
+                    .map(ClientResponseDTO::from)
+                    .toList()
     );
 }
 }

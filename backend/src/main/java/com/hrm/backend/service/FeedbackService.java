@@ -219,37 +219,49 @@ public class FeedbackService {
             );
         }
 
-        if (request.getFeedbackReceived() == null ||
-                request.getFeedbackReceived().isBlank()) {
+        // `feedback_received` predates this tracker and is NOT NULL in the database.
+        // Mirror the pipeline status into it so the old column stays valid without
+        // requiring existing rows to be rewritten.
+        String status = clean(request.getStatus());
+        String fallbackFeedback = status != null ? status : "SOURCED";
 
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Feedback received is required"
-            );
-        }
+        // Keep the legacy text client column in sync with the new one.
+        String clientName = clean(request.getClientName());
+        if (clientName != null) feedback.setClient(clientName);
+        // feedback_received is NOT NULL in the existing schema and predates this
+        // tracker, so it always receives a value (new rows default to SOURCED).
+        feedback.setFeedbackReceived(fallbackFeedback);
 
-        String feedbackReceived = request.getFeedbackReceived().trim();
-
-        if (feedbackReceived.length() > 30) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Feedback received cannot exceed 30 characters"
-            );
-        }
-
-        String client = clean(request.getClient());
-
-        if (client != null && client.length() > 150) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Client cannot exceed 150 characters"
-            );
-        }
-
+        // Every optional field is only written when the client actually sent it, so a
+        // partial update (e.g. just marking a candidate JOINED) cannot erase the rest
+        // of the record. Text fields can still be cleared by sending an empty string.
         feedback.setCandidateName(candidateName);
-        feedback.setClient(client);
-        feedback.setFeedbackReceived(feedbackReceived);
-        feedback.setComments(clean(request.getComments()));
+        feedback.setCandidateEmail(overwrite(request.getCandidateEmail(), feedback.getCandidateEmail()));
+        feedback.setContactNumber(overwrite(request.getContactNumber(), feedback.getContactNumber()));
+        feedback.setCurrentLocation(overwrite(request.getCurrentLocation(), feedback.getCurrentLocation()));
+        feedback.setPreferredLocation(overwrite(request.getPreferredLocation(), feedback.getPreferredLocation()));
+        feedback.setCurrentCompany(overwrite(request.getCurrentCompany(), feedback.getCurrentCompany()));
+        feedback.setCurrentDesignation(overwrite(request.getCurrentDesignation(), feedback.getCurrentDesignation()));
+        feedback.setHrName(overwrite(request.getHrName(), feedback.getHrName()));
+        feedback.setClientName(overwrite(clientName, feedback.getClientName()));
+        feedback.setComments(overwrite(request.getComments(), feedback.getComments()));
+
+        if (request.getCurrentCtc() != null) feedback.setCurrentCtc(request.getCurrentCtc());
+        if (request.getExpectedCtc() != null) feedback.setExpectedCtc(request.getExpectedCtc());
+        if (request.getNoticePeriodDays() != null) feedback.setNoticePeriodDays(request.getNoticePeriodDays());
+        if (request.getInterviewScheduled() != null) feedback.setInterviewScheduled(request.getInterviewScheduled());
+        if (request.getInterviewScheduledDate() != null) feedback.setInterviewScheduledDate(request.getInterviewScheduledDate());
+        if (request.getInterviewAttended() != null) feedback.setInterviewAttended(request.getInterviewAttended());
+        if (request.getGoogleFeedbackGiven() != null) feedback.setGoogleFeedbackGiven(request.getGoogleFeedbackGiven());
+        if (status != null) feedback.setStatus(status);
+    }
+
+    /**
+     * Returns the new value when the client sent the field (even if blank, which
+     * clears it), otherwise keeps what is already stored.
+     */
+    private String overwrite(String incoming, String current) {
+        return incoming == null ? current : clean(incoming);
     }
 
     // CLEAN STRING VALUES
