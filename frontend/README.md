@@ -1,16 +1,24 @@
-# React + Vite
+# HRM frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + Vite single-page app for the HRM Spring Boot backend (`../backend`).
 
-Currently, two official plugins are available:
+## Run
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+cp .env.example .env.local   # optional; defaults to http://localhost:8080
+npm ci
+npm run dev                  # http://localhost:5173 (the backend CORS allows only this origin)
+npm run lint
+npm run build
+```
 
-## React Compiler
+## How it talks to the backend
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- Auth is the backend's HttpOnly `HRM_AUTH` cookie, so Axios uses `withCredentials`. The JWT is never read or stored by JavaScript; only name/email/role are cached in `localStorage` for display.
+- Session restore uses `GET /api/auth/me`; any `401` from a protected endpoint signs the user out.
+- Roles are `ADMIN` and `EMPLOYEE`. Hiding UI is convenience only; the backend enforces access.
+- All HTTP calls live in `src/api/`. Search, sorting, filtering and pagination are **client-side** over the lists the API returns (the backend has no paging/filter parameters for these lists).
 
-## Expanding the ESLint configuration
+## Layout
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+`src/api` API modules · `src/context` auth + toasts · `src/components` layout/common UI · `src/pages` screens · `src/routes` route guard.

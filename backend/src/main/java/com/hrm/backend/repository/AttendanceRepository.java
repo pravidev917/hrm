@@ -47,4 +47,14 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
     long countByEmployeeEmployeeIdAndStatus(
             Long employeeId,
             String status);
+
+    // ADMIN DASHBOARD: attendance across one admin's employees
+    long countByEmployeeAdminAdminIdAndAttendanceDateAndStatus(
+            Long adminId, LocalDate attendanceDate, String status);
+
+    long countByEmployeeAdminAdminIdAndAttendanceDate(
+            Long adminId, LocalDate attendanceDate);
+
+    long countByEmployeeAdminAdminIdAndAttendanceDateBetween(
+            Long adminId, LocalDate startDate, LocalDate endDate);
 }

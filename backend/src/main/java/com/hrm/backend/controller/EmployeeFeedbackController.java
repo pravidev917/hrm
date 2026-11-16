@@ -2,6 +2,7 @@
 package com.hrm.backend.controller;
 
 import com.hrm.backend.dto.FeedbackRequestDTO;
+import jakarta.validation.Valid;
 import com.hrm.backend.dto.FeedbackResponseDTO;
 import com.hrm.backend.service.EmployeeService;
 import com.hrm.backend.service.FeedbackService;
@@ -43,7 +44,7 @@ public class EmployeeFeedbackController {
 
     @PostMapping
     public ResponseEntity<FeedbackResponseDTO> createFeedback(
-            @RequestBody FeedbackRequestDTO request,
+            @Valid @RequestBody FeedbackRequestDTO request,
             Authentication authentication) {
 
         Long employeeId = employeeService.getEmployeeIdByEmail(
@@ -58,7 +59,7 @@ public class EmployeeFeedbackController {
     @PutMapping("/{feedbackId}")
     public ResponseEntity<FeedbackResponseDTO> updateFeedback(
             @PathVariable Long feedbackId,
-            @RequestBody FeedbackRequestDTO request,
+            @Valid @RequestBody FeedbackRequestDTO request,
             Authentication authentication) {
 
         Long employeeId = employeeService.getEmployeeIdByEmail(

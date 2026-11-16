@@ -8,7 +8,6 @@ import com.hrm.backend.repository.AdminRepository;
 import com.hrm.backend.repository.EmployeeRepository;
 import com.hrm.backend.security.JwtService;
 
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -17,8 +16,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class AuthService {
-    @Value("${hrm.registration.employee-code:}")
-    private String employeeRegistrationCode;
     private final AdminRepository adminRepository;
     private final EmployeeRepository employeeRepository;
     private final PasswordEncoder passwordEncoder;
@@ -79,13 +76,6 @@ public class AuthService {
     // EMPLOYEE REGISTRATION
     @Transactional
     public AuthResponse registerEmployee(EmployeeRegisterRequest request) {
-        if (employeeRegistrationCode.isBlank()
-                || !employeeRegistrationCode.equals(request.getRegistrationCode())) {
-            throw new ResponseStatusException(
-                HttpStatus.FORBIDDEN,
-                "Invalid employee registration code"
-            );
-        }
         String email = request.getEmail().trim().toLowerCase();
 
         if (adminRepository.existsByEmail(email)

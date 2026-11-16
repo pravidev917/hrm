@@ -1,0 +1,10 @@
+$kind: http-request
+name: Admin dashboard summary (new)
+description: >-
+  Server-computed aggregates for the administrator dashboard: people counts,
+  today's attendance, leave counts for the month, client counts, the pending
+  leave review queue and the newest pending employee sign-ups.
+  Requires an administrator session cookie.
+url: '{{baseUrl}}/api/admin/dashboard'
+method: GET
+order: 20000

@@ -12,9 +12,6 @@ public class EmployeeRegisterRequest {
     @Positive(message = "Admin ID must be positive")
     private Long adminId;
 
-    @NotBlank(message = "Registration code is required")
-    private String registrationCode;
-
     @NotBlank(message = "Employee name is required")
     private String employeeName;
 
