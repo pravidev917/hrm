@@ -21,6 +21,14 @@ public class ClientService {
         return repository.findByAdminAdminId(adminId);
     }
 
+    /**
+     * Active clients only, alphabetical. Used where a client must be selected
+     * (filing a daily report); inactive clients are not valid targets.
+     */
+    public List<Client> getActiveClientsByAdmin(Long adminId) {
+        return repository.findByAdminAdminIdAndStatusOrderByClientNameAsc(adminId, "ACTIVE");
+    }
+
     // Get client by ID
     public Client getClientById(Long clientId, Long adminId) {
 

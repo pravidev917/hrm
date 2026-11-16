@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -86,6 +87,14 @@ public class Employee {
     @ToString.Exclude
     @EqualsAndHashCode.Exclude
     private List<Feedback> feedbackRecords = new ArrayList<>();
+
+    // Optional profile dates used by the calendar (birthdays / work anniversaries).
+    // Nullable and additive: existing rows stay valid with ddl-auto=update.
+    @Column(name = "date_of_birth")
+    private LocalDate dateOfBirth;
+
+    @Column(name = "joining_date")
+    private LocalDate joiningDate;
 
     // Timestamps
     private LocalDateTime createdAt;

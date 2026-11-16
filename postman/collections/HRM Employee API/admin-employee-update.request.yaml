@@ -1,0 +1,20 @@
+$kind: http-request
+name: Update employee (repaired - safe DTO)
+description: >-
+  Editable fields only. password, accountStatus and admin can no longer be
+  written through this endpoint; status is changed with approve/reject/
+  activate/deactivate. Email, when supplied, must be unique and valid.
+url: '{{baseUrl}}/api/admin/employees/1'
+method: PUT
+headers:
+  Content-Type: application/json
+body:
+  type: json
+  content: |-
+    {
+      "employeeName": "Asha Rao",
+      "role": "Recruiter",
+      "contact": "+91 90000 00000",
+      "email": "asha.rao@example.com"
+    }
+order: 20020

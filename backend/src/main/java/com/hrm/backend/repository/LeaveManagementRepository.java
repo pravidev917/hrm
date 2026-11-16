@@ -91,6 +91,30 @@ public interface LeaveManagementRepository
             String status);
 
     // --------------------------------------------------
+    // ADMIN DASHBOARD (scoped to one admin's employees)
+    // --------------------------------------------------
+
+    long countByEmployeeAdminAdminIdAndStatus(Long adminId, String status);
+
+    long countByEmployeeAdminAdminIdAndStartDateGreaterThanEqual(
+            Long adminId, LocalDate fromDate);
+
+    @Query("""
+            SELECT COALESCE(SUM(l.numberOfDays), 0)
+            FROM LeaveManagement l
+            WHERE l.employee.admin.adminId = :adminId
+              AND l.status = 'APPROVED'
+              AND l.startDate >= :fromDate
+            """)
+    BigDecimal sumApprovedDaysByAdminSince(
+            @Param("adminId") Long adminId,
+            @Param("fromDate") LocalDate fromDate);
+
+    /** Next pending requests for the admin's review queue, oldest first. */
+    List<LeaveManagement> findTop5ByEmployeeAdminAdminIdAndStatusOrderByStartDateAsc(
+            Long adminId, String status);
+
+    // --------------------------------------------------
     // LOCK LEAVE FOR ADMIN REVIEW
     // --------------------------------------------------
 

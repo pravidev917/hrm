@@ -2,6 +2,7 @@
 package com.hrm.backend.controller;
 
 import com.hrm.backend.dto.FeedbackRequestDTO;
+import jakarta.validation.Valid;
 import com.hrm.backend.dto.FeedbackResponseDTO;
 import com.hrm.backend.service.AdminService;
 import com.hrm.backend.service.FeedbackService;
@@ -44,7 +45,7 @@ public class AdminFeedbackController {
     @PostMapping("/employees/{employeeId}")
     public ResponseEntity<FeedbackResponseDTO> createFeedback(
             @PathVariable Long employeeId,
-            @RequestBody FeedbackRequestDTO request,
+            @Valid @RequestBody FeedbackRequestDTO request,
             Authentication authentication) {
 
         Long adminId = adminService.getAdminIdByEmail(
@@ -63,7 +64,7 @@ public class AdminFeedbackController {
     @PutMapping("/{feedbackId}")
     public ResponseEntity<FeedbackResponseDTO> updateFeedback(
             @PathVariable Long feedbackId,
-            @RequestBody FeedbackRequestDTO request,
+            @Valid @RequestBody FeedbackRequestDTO request,
             Authentication authentication) {
 
         Long adminId = adminService.getAdminIdByEmail(
