@@ -325,7 +325,7 @@ function LeaveBalancePanel({ reloadKey }) {
         <Skeleton rows={3} />
       ) : (
         <>
-          <div className="stats" style={{ marginBottom: 12 }}>
+          <div className="stats" style={{ marginBottom: 0 }}>
             <div className="card stat" style={{ boxShadow: 'none' }}>
               <span className="stat-label">Approved days</span>
               <span className="stat-value" style={{ fontSize: '1.5rem' }}>
@@ -347,29 +347,6 @@ function LeaveBalancePanel({ reloadKey }) {
               </span>
               <span className="stat-hint">{data.totals.rejectedRequests} rejected · {data.totals.cancelledRequests} cancelled</span>
             </div>
-          </div>
-
-          <div className="table-wrap">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th scope="col">Type</th>
-                  <th scope="col" className="right">Approved (days)</th>
-                  <th scope="col" className="right">Pending (days)</th>
-                  <th scope="col" className="right">Requests</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.byType.map((t) => (
-                  <tr key={t.type}>
-                    <td data-label="Type">{titleCase(t.type)}</td>
-                    <td data-label="Approved (days)" className="right">{formatMoney(t.approvedDaysThisYear)}</td>
-                    <td data-label="Pending (days)" className="right">{formatMoney(t.pendingDaysThisYear)}</td>
-                    <td data-label="Requests" className="right">{t.approvedRequestsThisYear}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
           </div>
         </>
       )}
