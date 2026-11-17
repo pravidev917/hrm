@@ -61,11 +61,7 @@ export default function LoginPage({ role = 'EMPLOYEE' }) {
   return (
     <AuthShell
       title="Sign in"
-      subtitle={
-        isAdmin
-          ? 'Manage people, leave and reports.'
-          : 'Your attendance, leave and reports.'
-      }
+      subtitle={isAdmin ? 'Manage people, leave and reports.' : null}
       footer={
         <span>
           {isAdmin
