@@ -3,33 +3,38 @@
  * One source of truth for colour, spacing, type, radius, elevation and motion.
  * Components must consume these variables instead of hard-coded values so a
  * single change here restyles the whole application.
+ *
+ * Colour system: the company palette.
+ *   Dark Purple #40156B · Deep Purple #6B368E · Primary Purple #8955A5
+ *   Light Purple #A286B6 · Very Light Purple #C7B0D7 · White #FFFFFF
+ * Tints below 100 are mixes of Primary/Light Purple with white; they only exist
+ * to give surfaces and hover states somewhere to sit.
  */
 :root {
-  /* Brand: navy surfaces + indigo actions */
-  --navy-900: #0b1120;
-  --navy-800: #111c33;
-  --navy-700: #182743;
-  --navy-600: #21365c;
-  --navy-500: #2c4370;
-
-  --indigo-700: #3730a3;
-  --indigo-600: #4338ca;
-  --indigo-500: #4f46e5;
-  --indigo-400: #6366f1;
-  --indigo-100: #e0e7ff;
-  --indigo-50: #eef2ff;
+  /* Brand purple scale */
+  --purple-950: #2a0e47; /* deeper than Dark Purple: sidebar base for depth */
+  --purple-900: #40156b; /* Dark Purple */
+  --purple-800: #53207f;
+  --purple-700: #6b368e; /* Deep Purple */
+  --purple-600: #8955a5; /* Primary Purple */
+  --purple-500: #9a6db3;
+  --purple-400: #a286b6; /* Light Purple */
+  --purple-300: #c7b0d7; /* Very Light Purple */
+  --purple-200: #ddcde7;
+  --purple-100: #ebddf3;
+  --purple-50: #f6effa;
 
   /* Neutral scale */
   --gray-25: #fbfcfe;
-  --gray-50: #f6f8fb;
-  --gray-100: #eef2f7;
-  --gray-200: #e2e8f0;
-  --gray-300: #cbd5e1;
-  --gray-400: #94a3b8;
-  --gray-500: #64748b;
-  --gray-600: #475569;
-  --gray-700: #334155;
-  --gray-900: #0f172a;
+  --gray-50: #f7f6f9;
+  --gray-100: #efecf2;
+  --gray-200: #e3dfe8;
+  --gray-300: #cdc7d3;
+  --gray-400: #9c95a4;
+  --gray-500: #6c6673;
+  --gray-600: #514b58;
+  --gray-700: #3a3540;
+  --gray-900: #1b1720;
 
   /* Semantic status colours (paired soft background + readable foreground) */
   --success-700: #047857;
@@ -54,18 +59,18 @@
   --text: var(--gray-900);
   --text-secondary: var(--gray-600);
   --muted: var(--gray-500);
-  --primary: var(--indigo-600);
-  --primary-hover: var(--indigo-700);
-  --primary-soft: var(--indigo-50);
-  --primary-ring: rgb(79 70 229 / 28%);
+  --primary: var(--purple-600);
+  --primary-hover: var(--purple-700);
+  --primary-soft: var(--purple-50);
+  --primary-ring: rgb(137 85 165 / 30%);
   --focus-ring: 0 0 0 3px var(--primary-ring);
 
-  --sidebar-bg: var(--navy-900);
-  --sidebar-text: #c7d2e4;
+  --sidebar-bg: var(--purple-950);
+  --sidebar-text: #dccbe7;
   --sidebar-text-strong: #ffffff;
-  --sidebar-hover: rgb(255 255 255 / 7%);
-  --sidebar-active: rgb(99 102 241 / 22%);
-  --sidebar-active-bar: var(--indigo-400);
+  --sidebar-hover: rgb(255 255 255 / 8%);
+  --sidebar-active: rgb(199 176 215 / 22%);
+  --sidebar-active-bar: var(--purple-300);
 
   /* Spacing scale (4px base) */
   --space-1: 4px;
@@ -103,11 +108,11 @@
   --radius-pill: 999px;
 
   /* Elevation */
-  --shadow-xs: 0 1px 2px rgb(15 23 42 / 5%);
-  --shadow-sm: 0 1px 2px rgb(15 23 42 / 6%), 0 1px 3px rgb(15 23 42 / 4%);
-  --shadow-md: 0 4px 12px rgb(15 23 42 / 8%), 0 2px 4px rgb(15 23 42 / 4%);
-  --shadow-lg: 0 20px 45px rgb(15 23 42 / 18%);
-  --shadow-sidebar: 8px 0 24px rgb(15 23 42 / 12%);
+  --shadow-xs: 0 1px 2px rgb(27 23 32 / 5%);
+  --shadow-sm: 0 1px 2px rgb(27 23 32 / 6%), 0 1px 3px rgb(27 23 32 / 4%);
+  --shadow-md: 0 4px 12px rgb(27 23 32 / 8%), 0 2px 4px rgb(27 23 32 / 4%);
+  --shadow-lg: 0 20px 45px rgb(27 23 32 / 18%);
+  --shadow-sidebar: 8px 0 24px rgb(42 14 71 / 18%);
 
   /* Layout */
   --sidebar-w: 264px;
