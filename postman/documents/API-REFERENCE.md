@@ -103,30 +103,12 @@ directly, which allowed those to be overwritten). Returns `409 / 400` when the e
 | GET | `/api/employee/dashboard` | Attendance/leave/report totals | ✅ |
 | **GET** | `/api/employee/clients` | Active clients of own admin | 🆕 **new** |
 | GET | `/api/employee/leaves` | Own leave requests | ✅ |
-| **GET** | `/api/employee/leaves/history` | Decisions already taken on own requests | ✅ |
 | POST | `/api/employee/leaves` | Apply | ✅ |
 | PUT | `/api/employee/leaves/{id}` | Edit while `PENDING` | ✅ |
 | PATCH | `/api/employee/leaves/{id}/cancel` | Cancel while `PENDING` | ✅ |
 
 **`GET /api/employee/clients`** → `[{ clientId, clientName, hrName, status }]`
 (a list, not a page). Scoped by the employee's own `admin_id`.
-
-**`GET /api/employee/leaves/history`** →
-
-```json
-{
-  "history": [ { "leaveId": 8, "type": "SICK", "startDate": "2026-01-20", "endDate": "2026-01-21",
-                 "numberOfDays": 2.0, "status": "APPROVED", "adminName": "Priya Sharma",
-                 "adminRemarks": "Approved", "reviewedAt": "2026-01-18T11:02:00" } ]
-}
-```
-
-Only requests an administrator has already decided on (approved/rejected) and
-cancelled ones appear here; pending requests are in the leave list. Totals and
-per-type breakdowns were removed from this endpoint because the UI shows them
-from the leave list and there is no annual entitlement in this system.
-
----
 
 There is **no annual entitlement** in this system, so no "remaining balance" is reported.
 Adding one is a business decision (quota per type, carry-over, accrual) that needs product input.

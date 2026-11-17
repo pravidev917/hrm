@@ -65,7 +65,6 @@ against the real tables.
 ### Leave
 | Check | Result |
 |---|---|
-| `GET /employee/leaves/history` | pass — decided/cancelled requests, newest first |
 | Apply leave (future dates) | 201 |
 | Past dates | 400 |
 | Invalid type | 400 with the allowed list |

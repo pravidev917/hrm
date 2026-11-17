@@ -1,7 +1,6 @@
 package com.hrm.backend.service;
 
 import com.hrm.backend.dto.LeaveRequestDTO;
-import com.hrm.backend.dto.LeaveHistoryDTO;
 import com.hrm.backend.entity.Admin;
 import com.hrm.backend.entity.Employee;
 import com.hrm.backend.entity.LeaveManagement;
@@ -117,32 +116,6 @@ public class LeaveManagementService {
     // =========================================================
     // EMPLOYEE - LEAVE BALANCE + APPROVAL HISTORY
     // =========================================================
-
-    /** Review history for the signed-in employee, newest first. */
-    @Transactional(readOnly = true)
-    public LeaveHistoryDTO getLeaveHistory(Long employeeId) {
-
-        Employee employee = getEmployeeById(employeeId);
-        validateEmployeeApproval(employee);
-
-        List<LeaveHistoryDTO.HistoryEntry> history = repository
-                .findByEmployeeEmployeeIdOrderByStartDateDesc(employeeId)
-                .stream()
-                .filter(l -> !"PENDING".equals(l.getStatus()))
-                .map(l -> new LeaveHistoryDTO.HistoryEntry(
-                        l.getLeaveId(),
-                        l.getType(),
-                        l.getStartDate(),
-                        l.getEndDate(),
-                        l.getNumberOfDays(),
-                        l.getStatus(),
-                        l.getApprovedBy() != null ? l.getApprovedBy().getAdminName() : null,
-                        l.getAdminRemarks(),
-                        l.getReviewedAt()))
-                .toList();
-
-        return new LeaveHistoryDTO(history);
-    }
 
     // =========================================================
     // EMPLOYEE - GET SINGLE LEAVE

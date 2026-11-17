@@ -8,8 +8,7 @@ import StatusBadge from '../components/common/StatusBadge'
 import DataTable from '../components/common/DataTable'
 import FormModal from '../components/common/FormModal'
 import ConfirmDialog from '../components/common/ConfirmDialog'
-import Skeleton from '../components/common/Skeleton'
-import { EmptyState, ErrorState, Spinner } from '../components/common/Feedback'
+import { ErrorState, Spinner } from '../components/common/Feedback'
 import { FilterSelect, SearchInput, Toolbar } from '../components/common/Toolbar'
 import Icon from '../components/common/Icon'
 import { formatDate, formatDateTime, formatMoney, matchesQuery, titleCase, todayISO } from '../utils/format'
@@ -187,57 +186,53 @@ export default function LeavesPage() {
         }
       />
 
-      <div className={isAdmin ? undefined : 'grid-sidebar'}>
-        <section className="card">
-          <div className="stats" style={{ marginBottom: 16 }}>
-            {['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'].map((s) => (
-              <button
-                key={s}
-                type="button"
-                className="card stat stat-link"
-                style={{
-                  textAlign: 'left',
-                  cursor: 'pointer',
-                  borderColor: status === s ? '#c7d2fe' : undefined,
-                  background: status === s ? 'var(--primary-soft)' : undefined,
-                }}
-                onClick={() => setStatus((cur) => (cur === s ? '' : s))}
-                aria-pressed={status === s}
-              >
-                <span className="stat-label">{titleCase(s)}</span>
-                <span className="stat-value" style={{ fontSize: '1.5rem' }}>
-                  {loading ? '—' : counts[s]}
-                </span>
-              </button>
-            ))}
-          </div>
+      <section className="card">
+        <div className="stats" style={{ marginBottom: 16 }}>
+          {['PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'].map((s) => (
+            <button
+              key={s}
+              type="button"
+              className="card stat stat-link"
+              style={{
+                textAlign: 'left',
+                cursor: 'pointer',
+                borderColor: status === s ? '#c7d2fe' : undefined,
+                background: status === s ? 'var(--primary-soft)' : undefined,
+              }}
+              onClick={() => setStatus((cur) => (cur === s ? '' : s))}
+              aria-pressed={status === s}
+            >
+              <span className="stat-label">{titleCase(s)}</span>
+              <span className="stat-value" style={{ fontSize: '1.5rem' }}>
+                {loading ? '—' : counts[s]}
+              </span>
+            </button>
+          ))}
+        </div>
 
-          <Toolbar>
-            <SearchInput
-              value={query}
-              onChange={setQuery}
-              placeholder={isAdmin ? 'Search employee, type, reason…' : 'Search type, reason…'}
-            />
-            <FilterSelect label="Filter by status" value={status} onChange={setStatus} options={STATUS_OPTIONS} />
-          </Toolbar>
+        <Toolbar>
+          <SearchInput
+            value={query}
+            onChange={setQuery}
+            placeholder={isAdmin ? 'Search employee, type, reason…' : 'Search type, reason…'}
+          />
+          <FilterSelect label="Filter by status" value={status} onChange={setStatus} options={STATUS_OPTIONS} />
+        </Toolbar>
 
-          {loading ? (
-            <Spinner />
-          ) : error ? (
-            <ErrorState message={error} onRetry={reload} />
-          ) : (
-            <DataTable
-              columns={columns}
-              rows={rows}
-              rowKey="leaveId"
-              emptyTitle={data.length ? 'No requests match your filters' : 'No leave requests yet'}
-              emptyHint={!isAdmin && !data.length ? 'Use “Request leave” to submit your first request.' : undefined}
-            />
-          )}
-        </section>
-
-        {!isAdmin && <ApprovalHistory />}
-      </div>
+        {loading ? (
+          <Spinner />
+        ) : error ? (
+          <ErrorState message={error} onRetry={reload} />
+        ) : (
+          <DataTable
+            columns={columns}
+            rows={rows}
+            rowKey="leaveId"
+            emptyTitle={data.length ? 'No requests match your filters' : 'No leave requests yet'}
+            emptyHint={!isAdmin && !data.length ? 'Use “Request leave” to submit your first request.' : undefined}
+          />
+        )}
+      </section>
 
       {form && (
         <FormModal
@@ -290,42 +285,5 @@ export default function LeavesPage() {
         />
       )}
     </>
-  )
-}
-
-/** Decisions already taken on this employee's requests (approval history). */
-function ApprovalHistory() {
-  const fetcher = useCallback(() => employeeLeaveApi.history(), [])
-  const { data, loading, error, reload } = useFetch(fetcher)
-
-  return (
-    <section className="card">
-      <h2>Approval history</h2>
-      {loading ? (
-        <Skeleton rows={4} />
-      ) : error ? (
-        <ErrorState title="History unavailable" message={error} onRetry={reload} />
-      ) : data.history.length === 0 ? (
-        <EmptyState icon="calendar" title="No decisions yet" hint="Once your administrator reviews a request it appears here." />
-      ) : (
-        <ul className="timeline">
-          {data.history.slice(0, 12).map((h) => (
-            <li key={h.leaveId} className={`is-${h.status.toLowerCase()}`}>
-              <div className="timeline-title">
-                {titleCase(h.type)} · {formatMoney(h.numberOfDays)} day(s)
-                <StatusBadge value={h.status} />
-              </div>
-              <div className="timeline-meta">
-                {formatDate(h.startDate)}
-                {h.endDate !== h.startDate && ` – ${formatDate(h.endDate)}`}
-                {h.reviewedAt && ` · reviewed ${formatDateTime(h.reviewedAt)}`}
-                {h.adminName && ` by ${h.adminName}`}
-              </div>
-              {h.adminRemarks && <div className="small">“{h.adminRemarks}”</div>}
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
   )
 }
