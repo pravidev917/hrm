@@ -21,7 +21,8 @@ import java.util.Locale;
  * up, when no administrator exists, this creates one from configuration:
  *
  *   DEFAULT_ADMIN_EMAIL     (required to seed)
- *   DEFAULT_ADMIN_PASSWORD  (required to seed, at least 8 characters)
+ *   DEFAULT_ADMIN_PASSWORD  (required to seed, at least 12 characters, not a
+ *                            well-known default and never equal to the email)
  *   DEFAULT_ADMIN_NAME      (optional, defaults to "Administrator")
  *
  * It never touches an existing administrator, so it is safe to run on every boot.
@@ -62,8 +63,11 @@ public class DefaultAdminInitializer implements ApplicationRunner {
             return;
         }
 
-        if (defaultPassword.length() < 8) {
-            log.warn("DEFAULT_ADMIN_PASSWORD must be at least 8 characters; skipping administrator seeding.");
+        if (!isStrongEnough(defaultEmail, defaultPassword)) {
+            log.warn(
+                    "DEFAULT_ADMIN_PASSWORD is too weak: use at least 12 characters, "
+                            + "avoid well-known defaults and do not reuse the email address. "
+                            + "Skipping administrator seeding.");
             return;
         }
 
@@ -77,5 +81,23 @@ public class DefaultAdminInitializer implements ApplicationRunner {
         adminRepository.save(admin);
 
         log.info("Seeded the initial administrator account {}", admin.getEmail());
+        log.info("Sign in once and change this password if it came from a document or chat.");
+    }
+
+    /** Minimum bar for the very first administrator credential. */
+    private boolean isStrongEnough(String email, String password) {
+
+        if (password.length() < 12) {
+            return false;
+        }
+
+        String normalised = password.toLowerCase(Locale.ROOT);
+        String emailLocal = email.split("@")[0].toLowerCase(Locale.ROOT);
+
+        return !normalised.equals(emailLocal)
+                && !normalised.contains("password")
+                && !normalised.contains("admin123")
+                && !normalised.contains("changeme")
+                && !normalised.contains("letmein");
     }
 }

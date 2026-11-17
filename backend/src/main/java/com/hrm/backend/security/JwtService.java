@@ -22,6 +22,24 @@ public class JwtService {
     @Value("${jwt.expiration}")
     private long expiration;
 
+    /**
+     * HS256 needs at least 256 bits of key material. A short or copied secret
+     * makes tokens forgeable, so the application refuses to start with one.
+     */
+    @jakarta.annotation.PostConstruct
+    void validateSecret() {
+
+        if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32) {
+            throw new IllegalStateException(
+                    "JWT_SECRET must be at least 32 bytes. Generate one with: "
+                            + "openssl rand -base64 48");
+        }
+
+        if (expiration <= 0) {
+            throw new IllegalStateException("jwt.expiration must be a positive number of milliseconds");
+        }
+    }
+
     private SecretKey getSigningKey() {
         return Keys.hmacShaKeyFor(
             secret.getBytes(StandardCharsets.UTF_8)

@@ -1,5 +1,8 @@
 package com.hrm.backend.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -25,6 +28,8 @@ import java.util.Map;
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<Map<String, Object>> handleResponseStatusException(
@@ -101,13 +106,65 @@ public class GlobalExceptionHandler {
 
         String message = messageOf(exception, "Request could not be processed");
 
+        // Only business messages are echoed. Anything that looks like a stack
+        // trace, driver error or class name is logged and reported generically.
+        if (!isClientSafe(message)) {
+            log.error("Unhandled service exception", exception);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("message", "Request could not be processed"));
+        }
+
         return ResponseEntity.status(statusFor(message)).body(Map.of("message", message));
+    }
+
+    /** Database failures never reach the client with driver text. */
+    @ExceptionHandler(DataAccessException.class)
+    public ResponseEntity<Map<String, Object>> handleDataAccess(DataAccessException exception) {
+
+        log.error("Database error", exception);
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("message", "The request could not be completed. Please try again."));
+    }
+
+    /** Anything else: log it, return a generic 500. */
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, Object>> handleUnexpected(Exception exception) {
+
+        log.error("Unexpected error", exception);
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Map.of("message", "The request could not be completed. Please try again."));
     }
 
     private String messageOf(RuntimeException exception, String fallback) {
         return exception.getMessage() != null && !exception.getMessage().isBlank()
                 ? exception.getMessage()
                 : fallback;
+    }
+
+    /**
+     * A service message is safe to echo when it is short, human readable and free
+     * of the markers Spring, Hibernate, JDBC and Java put in technical messages.
+     */
+    private boolean isClientSafe(String message) {
+
+        if (message == null || message.length() > 200) {
+            return false;
+        }
+
+        String lower = message.toLowerCase();
+
+        return !lower.contains("exception")
+                && !lower.contains("org.")
+                && !lower.contains("com.")
+                && !lower.contains("java.")
+                && !lower.contains("jakarta.")
+                && !lower.contains("hibernate")
+                && !lower.contains("sql")
+                && !lower.contains("jdbc")
+                && !lower.contains("constraint")
+                && !lower.contains("null");
     }
 
     private HttpStatus statusFor(String message) {

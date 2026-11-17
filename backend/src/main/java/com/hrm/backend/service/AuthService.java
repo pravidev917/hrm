@@ -7,6 +7,7 @@ import com.hrm.backend.entity.Employee;
 import com.hrm.backend.repository.AdminRepository;
 import com.hrm.backend.repository.EmployeeRepository;
 import com.hrm.backend.security.JwtService;
+import com.hrm.backend.security.LoginAttemptService;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -23,38 +24,42 @@ public class AuthService {
     private final EmployeeRepository employeeRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final LoginAttemptService loginAttemptService;
 
     public AuthService(
             AdminRepository adminRepository,
             EmployeeRepository employeeRepository,
             PasswordEncoder passwordEncoder,
-            JwtService jwtService) {
+            JwtService jwtService,
+            LoginAttemptService loginAttemptService) {
 
         this.adminRepository = adminRepository;
         this.employeeRepository = employeeRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.loginAttemptService = loginAttemptService;
     }
 
     // ADMIN LOGIN (email + password)
 
     @Transactional(readOnly = true)
-    public LoginResult loginAdmin(LoginRequest request) {
+    public LoginResult loginAdmin(LoginRequest request, String clientAddress) {
 
         String email = request.getIdentifier().trim().toLowerCase(Locale.ROOT);
 
-        Admin admin = adminRepository.findByEmail(email)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.UNAUTHORIZED,
-                        "Invalid email or password"
-                ));
+        loginAttemptService.assertNotLocked(email, clientAddress);
 
-        if (!passwordEncoder.matches(request.getPassword(), admin.getPassword())) {
-            throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED,
-                    "Invalid email or password"
-            );
+        Optional<Admin> found = adminRepository.findByEmail(email);
+
+        if (found.isEmpty()
+                || !passwordEncoder.matches(request.getPassword(), found.get().getPassword())) {
+
+            loginAttemptService.recordFailure(email, clientAddress);
+
+            throw invalidCredentials();
         }
+
+        Admin admin = found.get();
 
         if (!"ACTIVE".equals(admin.getStatus())) {
             throw new ResponseStatusException(
@@ -62,6 +67,8 @@ public class AuthService {
                     "Admin account is inactive"
             );
         }
+
+        loginAttemptService.recordSuccess(email, clientAddress);
 
         String token = jwtService.generateToken(
                 admin.getEmail(),
@@ -84,14 +91,23 @@ public class AuthService {
     // EMPLOYEE LOGIN (email, phone number or employee ID + password)
 
     @Transactional(readOnly = true)
-    public LoginResult loginEmployee(LoginRequest request) {
+    public LoginResult loginEmployee(LoginRequest request, String clientAddress) {
 
-        Employee employee = findByLoginIdentifier(request.getIdentifier())
-                .orElseThrow(AuthService::invalidCredentials);
+        String identifier = request.getIdentifier().trim().toLowerCase(Locale.ROOT);
 
-        if (!passwordEncoder.matches(request.getPassword(), employee.getPassword())) {
+        loginAttemptService.assertNotLocked(identifier, clientAddress);
+
+        Optional<Employee> found = findByLoginIdentifier(request.getIdentifier());
+
+        if (found.isEmpty()
+                || !passwordEncoder.matches(request.getPassword(), found.get().getPassword())) {
+
+            loginAttemptService.recordFailure(identifier, clientAddress);
+
             throw invalidCredentials();
         }
+
+        Employee employee = found.get();
 
         if (!"APPROVED".equals(employee.getAccountStatus())) {
             throw new ResponseStatusException(
@@ -99,6 +115,8 @@ public class AuthService {
                     "Employee account is inactive. Contact your administrator."
             );
         }
+
+        loginAttemptService.recordSuccess(identifier, clientAddress);
 
         String token = jwtService.generateToken(
                 employee.getEmail(),

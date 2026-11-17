@@ -4,6 +4,7 @@ package com.hrm.backend.security;
 import jakarta.servlet.DispatcherType;
 import jakarta.servlet.http.HttpServletResponse;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -18,6 +19,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -26,8 +28,18 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+    /** Comma separated list of origins allowed to call the API from a browser. */
+    private final List<String> allowedOrigins;
+
+    public SecurityConfig(
+            JwtAuthenticationFilter jwtAuthenticationFilter,
+            @Value("${app.cors.allowed-origins:http://localhost:5173}") String allowedOrigins) {
+
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+        this.allowedOrigins = Arrays.stream(allowedOrigins.split(","))
+                .map(String::trim)
+                .filter(origin -> !origin.isEmpty())
+                .toList();
     }
 
     @Bean
@@ -35,7 +47,18 @@ public class SecurityConfig {
             throws Exception {
 
         http
+            // No server session and no HTML form posts: every state change is a
+            // JSON fetch from the app origin, and the auth cookie is SameSite.
+            // Cross-site form posts therefore cannot carry the cookie.
             .csrf(csrf -> csrf.disable())
+
+            .headers(headers -> headers
+                .contentTypeOptions(options -> {})
+                .frameOptions(frame -> frame.deny())
+                .referrerPolicy(policy -> policy.policy(
+                        org.springframework.security.web.header.writers
+                                .ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))
+            )
 
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
@@ -117,9 +140,7 @@ public class SecurityConfig {
 
         CorsConfiguration configuration = new CorsConfiguration();
 
-        configuration.setAllowedOrigins(
-            List.of("http://localhost:5173")
-        );
+        configuration.setAllowedOrigins(allowedOrigins);
 
         configuration.setAllowedMethods(
             List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS")
