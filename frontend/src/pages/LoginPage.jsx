@@ -60,7 +60,7 @@ export default function LoginPage({ role = 'EMPLOYEE' }) {
 
   return (
     <AuthShell
-      title={isAdmin ? 'Administrator sign in' : 'sign in'}
+      title={isAdmin ? 'Administrator sign in' : 'Employee sign in'}
       subtitle={
         isAdmin
           ? 'Manage people, leave and reports.'

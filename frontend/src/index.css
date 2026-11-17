@@ -469,22 +469,33 @@ input[type='checkbox'], input[type='radio'] { width: auto; min-height: 0; accent
 @keyframes toast-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
 /* ============================== Auth ============================== */
-/* One centred card on the brand purple background. */
 .auth-page {
   min-height: 100vh;
-  display: grid;
-  place-items: center;
-  padding: var(--space-6) var(--space-4);
+  display: grid; grid-template-columns: 1fr;
   background:
-    radial-gradient(900px 460px at 50% 0%, var(--purple-800), transparent 65%),
-    linear-gradient(165deg, var(--purple-900), var(--purple-950) 55%, var(--purple-800));
+    radial-gradient(1100px 520px at 15% -10%, var(--purple-100), transparent 60%),
+    linear-gradient(180deg, var(--gray-50), var(--gray-100));
 }
-.auth-main { width: 100%; display: grid; place-items: center; }
-.auth-card { width: 100%; max-width: 460px; }
-.auth-card-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); padding: var(--space-8); }
-.auth-card h1 { margin-top: var(--space-3); font-size: var(--text-2xl); }
+.auth-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.auth-aside {
+  display: none;
+  flex-direction: column; justify-content: space-between;
+  padding: var(--space-10);
+  background: linear-gradient(160deg, var(--purple-950), var(--purple-800) 60%, var(--purple-700));
+  color: #fff;
+}
+.auth-aside .brand { color: #fff; }
+.auth-aside h2 { color: #fff; font-size: var(--text-2xl); max-width: 22ch; margin-bottom: var(--space-3); }
+.auth-aside p { color: rgb(220 203 231 / 85%); max-width: 36ch; font-size: var(--text-base); }
+.auth-points { list-style: none; padding: 0; margin: var(--space-6) 0 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.auth-points li { display: flex; gap: var(--space-3); align-items: flex-start; color: rgb(240 232 245 / 92%); font-size: var(--text-sm); }
+.auth-points svg { color: var(--purple-300); flex: 0 0 auto; margin-top: 2px; }
+.auth-main { display: grid; place-items: center; padding: var(--space-6) var(--space-4); }
+.auth-card { width: 100%; max-width: 440px; }
+.auth-card-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-md); padding: var(--space-8); }
+.auth-card h1 { margin-top: var(--space-2); font-size: var(--text-2xl); }
 .auth-card > p { color: var(--muted); }
-.auth-footer { text-align: center; margin-top: var(--space-5); color: rgb(240 232 245 / 80%); font-size: var(--text-sm); }
+.auth-footer { text-align: center; margin-top: var(--space-5); color: var(--muted); font-size: var(--text-sm); }
 
 .segmented { display: grid; grid-template-columns: 1fr 1fr; background: var(--surface-2); padding: 4px; border-radius: var(--radius-sm); margin: var(--space-4) 0 var(--space-5); gap: 4px; }
 .seg { border: 0; background: none; padding: var(--space-2); border-radius: var(--radius-xs); font: inherit; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--muted); cursor: pointer; transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease); }
@@ -493,6 +504,7 @@ input[type='checkbox'], input[type='radio'] { width: auto; min-height: 0; accent
 
 /* ============================== Responsive ============================== */
 @media (min-width: 1024px) {
+  .auth-split .auth-aside { display: flex; }
 }
 
 @media (max-width: 1200px) {
