@@ -33,7 +33,6 @@ export const ADMIN_NAV = [
     items: [
       { to: '/performance', label: 'Performance', icon: 'chart' },
       { to: '/feedback', label: 'Feedback', icon: 'message' },
-      { to: '/followups', label: 'Follow-ups', icon: 'phone' },
     ],
   },
 ]

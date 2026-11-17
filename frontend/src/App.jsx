@@ -33,7 +33,9 @@ export default function App() {
           <Route path="/weekly-reports" element={<WeeklyReportsPage />} />
           <Route path="/performance" element={<PerformancePage />} />
           <Route path="/feedback" element={<FeedbackPage />} />
-          <Route path="/followups" element={<FollowupsPage />} />
+          <Route element={<ProtectedRoute role="EMPLOYEE" />}>
+            <Route path="/followups" element={<FollowupsPage />} />
+          </Route>
 
           <Route element={<ProtectedRoute role="ADMIN" />}>
             <Route path="/employees" element={<EmployeesPage />} />
