@@ -33,7 +33,7 @@ export default function AuthShell({ title, subtitle, children, footer }) {
           <div className="auth-card-panel">
             <Brand center />
             <h1>{title}</h1>
-            {subtitle && <p className="muted">{subtitle}</p>}
+            {subtitle && <p className="muted auth-subtitle">{subtitle}</p>}
             {children}
           </div>
           {footer && <div className="auth-footer">{footer}</div>}
