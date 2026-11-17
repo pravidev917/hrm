@@ -8,11 +8,20 @@ import Icon from '../components/common/Icon'
 
 const EMAIL_RE = /^\S+@\S+\.\S+$/
 
-export default function LoginPage() {
+/**
+ * Sign-in form for one account type.
+ *
+ * Employees and administrators have separate pages (and therefore separate
+ * URLs and endpoints), so the account type is fixed by the route that renders
+ * this component rather than chosen in the UI:
+ *
+ *   /login        -> employees,       POST /api/auth/employee/login
+ *   /admin/login  -> administrators,  POST /api/auth/admin/login
+ */
+export default function LoginPage({ role = 'EMPLOYEE' }) {
   const { user, initializing, login } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
-  const [role, setRole] = useState('EMPLOYEE')
   const [values, setValues] = useState({ identifier: '', password: '' })
   const [errors, setErrors] = useState({})
   const [apiError, setApiError] = useState('')
@@ -51,32 +60,20 @@ export default function LoginPage() {
 
   return (
     <AuthShell
-      title="Sign in"
-      subtitle="Choose your account type to continue."
-      footer={<span>Need an account? Ask your administrator to create one.</span>}
+      title={isAdmin ? 'Administrator sign in' : 'Employee sign in'}
+      subtitle={
+        isAdmin
+          ? 'Manage people, leave and reports.'
+          : 'Your attendance, leave and reports.'
+      }
+      footer={
+        <span>
+          {isAdmin
+            ? 'Administrator accounts are created by an existing administrator.'
+            : 'Need an account? Ask your administrator to create one.'}
+        </span>
+      }
     >
-      <div className="segmented" role="tablist" aria-label="Account type">
-        {[
-          ['EMPLOYEE', 'Employee'],
-          ['ADMIN', 'Administrator'],
-        ].map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            role="tab"
-            aria-selected={role === value}
-            className={role === value ? 'seg active' : 'seg'}
-            onClick={() => {
-              setRole(value)
-              setApiError('')
-              setErrors({})
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
       <form onSubmit={handleSubmit} noValidate>
         {apiError && <Alert>{apiError}</Alert>}
 

@@ -11,6 +11,11 @@ export const adminEmployeeApi = {
   page: (params) => unwrap(apiClient.get('/api/admin/employees/page', { params })),
 }
 
+export const administratorApi = {
+  list: () => unwrap(apiClient.get('/api/admin/admins')),
+  create: (body) => unwrap(apiClient.post('/api/admin/admins', body)),
+}
+
 export const clientApi = {
   list: () => unwrap(apiClient.get('/api/admin/clients')),
   create: (body) => unwrap(apiClient.post('/api/admin/clients', body)),

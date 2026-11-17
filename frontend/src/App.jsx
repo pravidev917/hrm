@@ -4,6 +4,7 @@ import AppLayout from './components/layout/AppLayout'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import EmployeesPage from './pages/EmployeesPage'
+import AdministratorsPage from './pages/AdministratorsPage'
 import ClientsPage from './pages/ClientsPage'
 import AttendancePage from './pages/AttendancePage'
 import LeavesPage from './pages/LeavesPage'
@@ -17,7 +18,9 @@ import { NotFoundPage, UnauthorizedPage } from './pages/StatusPages'
 export default function App() {
   return (
     <Routes>
-      <Route path="/login" element={<LoginPage />} />
+      // Two separate entry points, each with its own URL and endpoint.
+      <Route path="/login" element={<LoginPage role="EMPLOYEE" />} />
+      <Route path="/admin/login" element={<LoginPage role="ADMIN" />} />
       <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
       <Route element={<ProtectedRoute />}>
@@ -34,6 +37,7 @@ export default function App() {
 
           <Route element={<ProtectedRoute role="ADMIN" />}>
             <Route path="/employees" element={<EmployeesPage />} />
+            <Route path="/administrators" element={<AdministratorsPage />} />
             <Route path="/clients" element={<ClientsPage />} />
           </Route>
           <Route element={<ProtectedRoute role="EMPLOYEE" />}>

@@ -10,6 +10,7 @@ export const ADMIN_NAV = [
     section: 'People',
     items: [
       { to: '/employees', label: 'Employees', icon: 'users' },
+      { to: '/administrators', label: 'Administrators', icon: 'shield' },
       { to: '/clients', label: 'Clients', icon: 'briefcase' },
     ],
   },

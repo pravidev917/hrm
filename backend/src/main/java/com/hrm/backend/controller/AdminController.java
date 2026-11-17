@@ -1,8 +1,11 @@
 
 package com.hrm.backend.controller;
+import com.hrm.backend.dto.AdminCreateRequest;
+import com.hrm.backend.dto.AdminResponseDTO;
 import com.hrm.backend.dto.EmployeeCreateRequest;
 import com.hrm.backend.dto.EmployeeResponseDTO;
 import com.hrm.backend.dto.EmployeeUpdateRequest;
+import com.hrm.backend.entity.Admin;
 import com.hrm.backend.entity.Employee;
 import com.hrm.backend.service.AdminService;
 import com.hrm.backend.service.EmployeeService;
@@ -31,6 +34,29 @@ public class AdminController {
 
         this.employeeService = employeeService;
         this.adminService = adminService;
+    }
+
+    // ADMINISTRATORS
+
+    @GetMapping("/admins")
+    public ResponseEntity<List<AdminResponseDTO>> getAdmins() {
+
+        return ResponseEntity.ok(
+                adminService.getAllAdmins()
+                        .stream()
+                        .map(AdminResponseDTO::from)
+                        .toList()
+        );
+    }
+
+    @PostMapping("/admins")
+    public ResponseEntity<AdminResponseDTO> createAdmin(
+            @Valid @RequestBody AdminCreateRequest request) {
+
+        Admin created = adminService.createAdminAccount(request);
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(AdminResponseDTO.from(created));
     }
 
     // CREATE EMPLOYEE
