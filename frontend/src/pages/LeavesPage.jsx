@@ -187,8 +187,6 @@ export default function LeavesPage() {
         }
       />
 
-      {!isAdmin && <LeaveBalancePanel reloadKey={data} />}
-
       <div className={isAdmin ? undefined : 'grid-sidebar'}>
         <section className="card">
           <div className="stats" style={{ marginBottom: 16 }}>
@@ -292,65 +290,6 @@ export default function LeavesPage() {
         />
       )}
     </>
-  )
-}
-
-/** Employee leave position, computed by the backend from stored records. */
-function LeaveBalancePanel({ reloadKey }) {
-  const fetcher = useCallback(() => employeeLeaveApi.balance(), [])
-  const { data, loading, error, reload } = useFetch(fetcher)
-  // Refetch when the leave list changes (e.g. after a new request).
-  const [lastKey, setLastKey] = useState(reloadKey)
-  if (lastKey !== reloadKey) {
-    setLastKey(reloadKey)
-    reload()
-  }
-
-  if (error) {
-    return (
-      <section className="card">
-        <h2>Leave balance</h2>
-        <ErrorState title="Balance unavailable" message={error} onRetry={reload} />
-      </section>
-    )
-  }
-
-  return (
-    <section className="card">
-      <div className="card-header">
-        <h2>Leave this year</h2>
-        {data && <span className="muted small">1 Jan – 31 Dec {data.asOfDate?.slice(0, 4)}</span>}
-      </div>
-      {loading || !data ? (
-        <Skeleton rows={3} />
-      ) : (
-        <>
-          <div className="stats" style={{ marginBottom: 0 }}>
-            <div className="card stat" style={{ boxShadow: 'none' }}>
-              <span className="stat-label">Approved days</span>
-              <span className="stat-value" style={{ fontSize: '1.5rem' }}>
-                {formatMoney(data.totals.approvedDaysThisYear)}
-              </span>
-              <span className="stat-hint">{data.totals.approvedRequestsThisYear} approved requests</span>
-            </div>
-            <div className="card stat" style={{ boxShadow: 'none' }}>
-              <span className="stat-label">Pending days</span>
-              <span className="stat-value" style={{ fontSize: '1.5rem' }}>
-                {formatMoney(data.totals.pendingDaysThisYear)}
-              </span>
-              <span className="stat-hint">{data.totals.pendingRequests} awaiting review</span>
-            </div>
-            <div className="card stat" style={{ boxShadow: 'none' }}>
-              <span className="stat-label">Approved all time</span>
-              <span className="stat-value" style={{ fontSize: '1.5rem' }}>
-                {formatMoney(data.totals.approvedDaysAllTime)}
-              </span>
-              <span className="stat-hint">{data.totals.rejectedRequests} rejected · {data.totals.cancelledRequests} cancelled</span>
-            </div>
-          </div>
-        </>
-      )}
-    </section>
   )
 }
 
