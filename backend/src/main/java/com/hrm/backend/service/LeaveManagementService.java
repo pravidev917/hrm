@@ -1,7 +1,7 @@
 package com.hrm.backend.service;
 
 import com.hrm.backend.dto.LeaveRequestDTO;
-import com.hrm.backend.dto.LeaveBalanceDTO;
+import com.hrm.backend.dto.LeaveHistoryDTO;
 import com.hrm.backend.entity.Admin;
 import com.hrm.backend.entity.Employee;
 import com.hrm.backend.entity.LeaveManagement;
@@ -118,62 +118,18 @@ public class LeaveManagementService {
     // EMPLOYEE - LEAVE BALANCE + APPROVAL HISTORY
     // =========================================================
 
-    /**
-     * Reports the employee's leave position and review history from stored records.
-     *
-     * The project has no leave-entitlement policy configured (no annual quota field
-     * or setting exists), so this intentionally does NOT report a remaining allowance:\n     * that would require a business decision this code base does not record.
-     */
+    /** Review history for the signed-in employee, newest first. */
     @Transactional(readOnly = true)
-    public LeaveBalanceDTO getLeaveBalance(Long employeeId) {
+    public LeaveHistoryDTO getLeaveHistory(Long employeeId) {
 
         Employee employee = getEmployeeById(employeeId);
         validateEmployeeApproval(employee);
 
-        List<LeaveManagement> leaves = repository
-                .findByEmployeeEmployeeIdOrderByStartDateDesc(employeeId);
-
-        LocalDate today = LocalDate.now();
-        LocalDate yearStart = today.withDayOfYear(1);
-        LocalDate yearEnd = today.withDayOfYear(today.lengthOfYear());
-
-        // "This year" = requests that fall inside the current calendar year.
-        List<LeaveManagement> thisYear = leaves.stream()
-                .filter(l -> !l.getStartDate().isBefore(yearStart)
-                        && !l.getStartDate().isAfter(yearEnd))
-                .toList();
-
-        BigDecimal approvedThisYear = sumDays(thisYear, "APPROVED");
-        BigDecimal pendingThisYear = sumDays(thisYear, "PENDING");
-        BigDecimal approvedAllTime = sumDays(leaves, "APPROVED");
-
-        LeaveBalanceDTO.Totals totals = new LeaveBalanceDTO.Totals(
-                approvedThisYear,
-                pendingThisYear,
-                approvedAllTime,
-                countStatus(thisYear, "APPROVED"),
-                countStatus(leaves, "PENDING"),
-                countStatus(leaves, "REJECTED"),
-                countStatus(leaves, "CANCELLED")
-        );
-
-        // Per-type breakdown, ordered by the fixed set of supported leave types.
-        List<LeaveBalanceDTO.TypeBreakdown> byType = ALLOWED_LEAVE_TYPES.stream()
-                .map(type -> {
-                    List<LeaveManagement> ofType = thisYear.stream()
-                            .filter(l -> type.equals(l.getType()))
-                            .toList();
-                    return new LeaveBalanceDTO.TypeBreakdown(
-                            type,
-                            sumDays(ofType, "APPROVED"),
-                            sumDays(ofType, "PENDING"),
-                            countStatus(ofType, "APPROVED"));
-                })
-                .toList();
-
-        List<LeaveBalanceDTO.HistoryEntry> history = leaves.stream()
+        List<LeaveHistoryDTO.HistoryEntry> history = repository
+                .findByEmployeeEmployeeIdOrderByStartDateDesc(employeeId)
+                .stream()
                 .filter(l -> !"PENDING".equals(l.getStatus()))
-                .map(l -> new LeaveBalanceDTO.HistoryEntry(
+                .map(l -> new LeaveHistoryDTO.HistoryEntry(
                         l.getLeaveId(),
                         l.getType(),
                         l.getStartDate(),
@@ -185,18 +141,7 @@ public class LeaveManagementService {
                         l.getReviewedAt()))
                 .toList();
 
-        return new LeaveBalanceDTO(today, yearStart, yearEnd, totals, byType, history);
-    }
-
-    private BigDecimal sumDays(List<LeaveManagement> leaves, String status) {
-        return leaves.stream()
-                .filter(l -> status.equals(l.getStatus()))
-                .map(LeaveManagement::getNumberOfDays)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    private long countStatus(List<LeaveManagement> leaves, String status) {
-        return leaves.stream().filter(l -> status.equals(l.getStatus())).count();
+        return new LeaveHistoryDTO(history);
     }
 
     // =========================================================

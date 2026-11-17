@@ -2,8 +2,8 @@ import { apiClient, unwrap } from './axiosClient'
 
 export const employeeLeaveApi = {
   list: () => unwrap(apiClient.get('/api/employee/leaves')),
-  // Days taken / pending plus review history, computed by the backend.
-  balance: () => unwrap(apiClient.get('/api/employee/leaves/balance')),
+  // Decisions already taken on this employee's requests.
+  history: () => unwrap(apiClient.get('/api/employee/leaves/history')),
   apply: (body) => unwrap(apiClient.post('/api/employee/leaves', body)),
   update: (id, body) => unwrap(apiClient.put(`/api/employee/leaves/${id}`, body)),
   cancel: (id) => unwrap(apiClient.patch(`/api/employee/leaves/${id}/cancel`)),

@@ -295,7 +295,7 @@ export default function LeavesPage() {
 
 /** Decisions already taken on this employee's requests (approval history). */
 function ApprovalHistory() {
-  const fetcher = useCallback(() => employeeLeaveApi.balance(), [])
+  const fetcher = useCallback(() => employeeLeaveApi.history(), [])
   const { data, loading, error, reload } = useFetch(fetcher)
 
   return (
