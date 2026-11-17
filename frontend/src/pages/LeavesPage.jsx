@@ -371,10 +371,6 @@ function LeaveBalancePanel({ reloadKey }) {
               </tbody>
             </table>
           </div>
-          <p className="muted small" style={{ marginTop: 12, marginBottom: 0 }}>
-            Figures are counted from your recorded requests. This system does not store an annual
-            allowance, so no remaining balance is shown.
-          </p>
         </>
       )}
     </section>
