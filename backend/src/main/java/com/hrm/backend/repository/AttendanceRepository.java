@@ -57,4 +57,7 @@ public interface AttendanceRepository extends JpaRepository<Attendance, Long> {
 
     long countByEmployeeAdminAdminIdAndAttendanceDateBetween(
             Long adminId, LocalDate startDate, LocalDate endDate);
+
+    // Cascade cleanup when an administrator deletes an employee.
+    long deleteByEmployeeEmployeeId(Long employeeId);
 }

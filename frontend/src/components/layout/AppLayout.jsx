@@ -3,6 +3,8 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { ADMIN_NAV, EMPLOYEE_NAV, navFor } from './navItems'
 import Icon from '../common/Icon'
+import Brand from '../common/Brand'
+import { brand } from '../../config/brand'
 import { useNavBadges } from '../../hooks/useNavBadges'
 
 export default function AppLayout() {
@@ -31,13 +33,7 @@ export default function AppLayout() {
       </a>
 
       <aside className={open ? 'sidebar open sidebar-open-scroll' : 'sidebar'} aria-label="Primary navigation">
-        <div className="brand">
-          <span className="brand-mark">H</span>
-          <span>
-            HRM
-            <span className="brand-sub">{isAdmin ? 'People operations' : 'Employee portal'}</span>
-          </span>
-        </div>
+        <Brand subtitle={isAdmin ? brand.subtitleAdmin : brand.subtitleEmployee} />
 
         <nav aria-label="Sections">
           {nav.map((group) => (
@@ -93,7 +89,7 @@ export default function AppLayout() {
             <Icon name={open ? 'close' : 'menu'} size={22} />
           </button>
 
-          <span className="topbar-title">{current?.label ?? 'HRM'}</span>
+          <span className="topbar-title">{current?.label ?? brand.name}</span>
           <div className="spacer" />
 
           <div className="user-chip">

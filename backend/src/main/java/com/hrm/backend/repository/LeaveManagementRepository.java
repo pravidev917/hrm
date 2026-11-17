@@ -126,4 +126,7 @@ public interface LeaveManagementRepository
             """)
     Optional<LeaveManagement> findByIdForUpdate(
             @Param("leaveId") Long leaveId);
+
+    // Cascade cleanup when an administrator deletes an employee.
+    long deleteByEmployeeEmployeeId(Long employeeId);
 }

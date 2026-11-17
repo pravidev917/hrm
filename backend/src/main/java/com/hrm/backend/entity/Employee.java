@@ -5,6 +5,7 @@ import jakarta.persistence.*;
 import lombok.*;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -44,8 +45,23 @@ public class Employee {
     @Column(nullable = false, length = 50)
     private String role;
 
-    @Column(length = 50)
+    // Phone number. Also usable as a sign-in identifier, so it is unique.
+    @Column(length = 50, unique = true)
     private String contact;
+
+    /**
+     * Human-readable employee ID (for example EMP-0007) assigned by the administrator.
+     * Employees sign in with this, their email or their phone number.
+     * Nullable only for rows created before the field existed.
+     */
+    @Column(name = "employee_code", unique = true, length = 40)
+    private String employeeCode;
+
+    @Column(length = 100)
+    private String department;
+
+    @Column(precision = 12, scale = 2)
+    private BigDecimal salary;
 
     // Account approval status
     @Column(name = "account_status", nullable = false, length = 20)

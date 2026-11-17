@@ -60,4 +60,7 @@ public interface DailyReportRepository extends JpaRepository<DailyReport, Long> 
             LocalDate startDate,
             LocalDate endDate
     );
+
+    // Cascade cleanup when an administrator deletes an employee.
+    long deleteByEmployeeEmployeeId(Long employeeId);
 }

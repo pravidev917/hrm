@@ -2,9 +2,9 @@ import { apiClient, unwrap } from './axiosClient'
 
 export const adminEmployeeApi = {
   list: () => unwrap(apiClient.get('/api/admin/employees')),
+  create: (body) => unwrap(apiClient.post('/api/admin/employees', body)),
   update: (id, body) => unwrap(apiClient.put(`/api/admin/employees/${id}`, body)),
-  approve: (id) => unwrap(apiClient.put(`/api/admin/employees/${id}/approve`)),
-  reject: (id) => unwrap(apiClient.put(`/api/admin/employees/${id}/reject`)),
+  remove: (id) => unwrap(apiClient.delete(`/api/admin/employees/${id}`)),
   activate: (id) => unwrap(apiClient.patch(`/api/admin/employees/${id}/activate`)),
   deactivate: (id) => unwrap(apiClient.patch(`/api/admin/employees/${id}/deactivate`)),
   // Server-side paged search: { search, status, page, size, sort }

@@ -1,19 +1,23 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { adminDashboardApi } from '../api/dashboardApi'
 import { employeePortalApi } from '../api/employeeApi'
 import { useAuth } from '../hooks/useAuth'
 import { useFetch } from '../hooks/useFetch'
+import { useToast } from '../hooks/useToast'
 import PageHeader from '../components/common/PageHeader'
 import StatCard from '../components/common/StatCard'
 import StatusBadge from '../components/common/StatusBadge'
 import Skeleton from '../components/common/Skeleton'
 import { EmptyState, ErrorState } from '../components/common/Feedback'
 import Icon from '../components/common/Icon'
+import EmployeeFormModal from '../components/employees/EmployeeFormModal'
 import { formatDate, formatMoney, formatNumber, todayISO } from '../utils/format'
 
 export default function DashboardPage() {
   const { user, isAdmin } = useAuth()
   const firstName = user.name?.split(' ')[0] ?? 'there'
+  const [adding, setAdding] = useState(false)
 
   return (
     <>
@@ -25,15 +29,34 @@ export default function DashboardPage() {
             ? 'Everything waiting on you, and how the team is doing today.'
             : 'Your activity, approvals and requests in one place.'
         }
+        actions={
+          isAdmin ? (
+            <button type="button" className="btn btn-primary" onClick={() => setAdding(true)}>
+              <Icon name="plus" size={16} /> Add employee
+            </button>
+          ) : null
+        }
       />
-      {isAdmin ? <AdminDashboard /> : <EmployeeDashboard />}
+      {isAdmin ? <AdminDashboard onAddEmployee={() => setAdding(true)} /> : <EmployeeDashboard />}
+      {adding && <AddEmployeeDialog onClose={() => setAdding(false)} />}
     </>
+  )
+}
+
+/** Thin wrapper so the dashboard does not need to reload when an employee is added. */
+function AddEmployeeDialog({ onClose }) {
+  const toast = useToast()
+  return (
+    <EmployeeFormModal
+      onClose={onClose}
+      onSaved={(created) => toast.success(`${created.employeeName} added — they can sign in now`)}
+    />
   )
 }
 
 /* ------------------------------- Admin ------------------------------- */
 
-function AdminDashboard() {
+function AdminDashboard({ onAddEmployee }) {
   const { data, loading, error, reload } = useFetch(adminDashboardApi.summary)
 
   if (loading) {
@@ -59,7 +82,7 @@ function AdminDashboard() {
   }
   if (error) return <ErrorState message={error} onRetry={reload} />
 
-  const { people, attendanceToday, leaves, clients, pendingLeaveQueue, pendingEmployees } = data
+  const { people, attendanceToday, leaves, clients, pendingLeaveQueue, recentEmployees } = data
 
   return (
     <>
@@ -67,7 +90,7 @@ function AdminDashboard() {
         <StatCard
           label="Active employees"
           value={formatNumber(people.activeEmployees)}
-          hint={`${people.totalEmployees} total · ${people.pendingEmployees} awaiting approval`}
+          hint={`${people.totalEmployees} total · ${people.inactiveEmployees} inactive`}
           icon="users"
           to="/employees"
         />
@@ -129,24 +152,28 @@ function AdminDashboard() {
 
         <section className="card">
           <div className="card-header">
-            <h2>New sign-ups</h2>
+            <h2>Newest team members</h2>
             <Link to="/employees" className="small">
               Manage team →
             </Link>
           </div>
-          {pendingEmployees.length === 0 ? (
-            <EmptyState icon="user-check" title="No pending sign-ups" hint="New registrations appear here for approval." />
+          {recentEmployees.length === 0 ? (
+            <EmptyState
+              icon="users"
+              title="No employees yet"
+              hint="Add your first employee — you set their employee ID, email, phone, department, role, salary and password."
+            />
           ) : (
             <ul className="list">
-              {pendingEmployees.map((e) => (
+              {recentEmployees.map((e) => (
                 <li key={e.employeeId}>
                   <div style={{ minWidth: 0 }}>
                     <strong>{e.employeeName}</strong>
                     <div className="muted small">
-                      {e.role} · {e.email}
+                      {e.employeeCode || `#${e.employeeId}`} · {e.department || e.role}
                     </div>
                   </div>
-                  <StatusBadge value="PENDING" />
+                  <StatusBadge value={e.accountStatus} />
                 </li>
               ))}
             </ul>
@@ -197,9 +224,9 @@ function AdminDashboard() {
         <section className="card">
           <h2>Quick actions</h2>
           <div style={{ display: 'grid', gap: 8 }}>
-            <Link to="/employees" className="btn btn-block">
-              <Icon name="users" size={16} /> Approve employees
-            </Link>
+            <button type="button" className="btn btn-block" onClick={onAddEmployee}>
+              <Icon name="plus" size={16} /> Add employee
+            </button>
             <Link to="/leaves" className="btn btn-block">
               <Icon name="calendar" size={16} /> Review leave
             </Link>

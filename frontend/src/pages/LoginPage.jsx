@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
+import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import { getErrorMessage } from '../api/axiosClient'
 import AuthShell from '../components/common/AuthShell'
@@ -13,7 +13,7 @@ export default function LoginPage() {
   const navigate = useNavigate()
   const location = useLocation()
   const [role, setRole] = useState('EMPLOYEE')
-  const [values, setValues] = useState({ email: '', password: '' })
+  const [values, setValues] = useState({ identifier: '', password: '' })
   const [errors, setErrors] = useState({})
   const [apiError, setApiError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -21,19 +21,23 @@ export default function LoginPage() {
 
   if (!initializing && user) return <Navigate to="/dashboard" replace />
 
+  const isAdmin = role === 'ADMIN'
+
   async function handleSubmit(e) {
     e.preventDefault()
     setApiError('')
     const next = {}
-    if (!values.email.trim()) next.email = 'Email is required'
-    else if (!EMAIL_RE.test(values.email.trim())) next.email = 'Enter a valid email address'
+    const identifier = values.identifier.trim()
+    if (!identifier) next.identifier = isAdmin ? 'Email is required' : 'Enter your email, phone or employee ID'
+    // Administrators sign in by email only; employees may use phone or employee ID.
+    else if (isAdmin && !EMAIL_RE.test(identifier)) next.identifier = 'Enter a valid email address'
     if (!values.password) next.password = 'Password is required'
     setErrors(next)
     if (Object.keys(next).length) return
 
     setSubmitting(true)
     try {
-      await login(role, { email: values.email.trim(), password: values.password })
+      await login(role, { identifier, password: values.password })
       // Only follow same-app paths for the post-login redirect.
       const from = location.state?.from
       navigate(typeof from === 'string' && from.startsWith('/') && !from.startsWith('//') ? from : '/dashboard', {
@@ -49,11 +53,7 @@ export default function LoginPage() {
     <AuthShell
       title="Sign in"
       subtitle="Choose your account type to continue."
-      footer={
-        <>
-          New employee? <Link to="/register">Create an account</Link>
-        </>
-      }
+      footer={<span>Need an account? Ask your administrator to create one.</span>}
     >
       <div className="segmented" role="tablist" aria-label="Account type">
         {[
@@ -69,6 +69,7 @@ export default function LoginPage() {
             onClick={() => {
               setRole(value)
               setApiError('')
+              setErrors({})
             }}
           >
             {label}
@@ -80,26 +81,26 @@ export default function LoginPage() {
         {apiError && <Alert>{apiError}</Alert>}
 
         <div className="field" style={{ marginBottom: 14 }}>
-          <label htmlFor="login-email">
-            Email <span className="req" aria-hidden="true">*</span>
+          <label htmlFor="login-identifier">
+            {isAdmin ? 'Email' : 'Email, phone or employee ID'} <span className="req" aria-hidden="true">*</span>
           </label>
           <input
-            id="login-email"
-            name="email"
-            type="email"
+            id="login-identifier"
+            name="identifier"
+            type={isAdmin ? 'email' : 'text'}
             autoComplete="username"
-            value={values.email}
+            value={values.identifier}
             onChange={(e) => {
-              setValues((s) => ({ ...s, email: e.target.value }))
-              setErrors((s) => ({ ...s, email: undefined }))
+              setValues((s) => ({ ...s, identifier: e.target.value }))
+              setErrors((s) => ({ ...s, identifier: undefined }))
             }}
-            aria-invalid={errors.email ? true : undefined}
-            aria-describedby={errors.email ? 'login-email-err' : undefined}
-            placeholder="you@company.com"
+            aria-invalid={errors.identifier ? true : undefined}
+            aria-describedby={errors.identifier ? 'login-identifier-err' : undefined}
+            placeholder={isAdmin ? 'you@company.com' : 'you@company.com · 98765 43210 · EMP-0007'}
           />
-          {errors.email && (
-            <span id="login-email-err" className="field-error">
-              {errors.email}
+          {errors.identifier && (
+            <span id="login-identifier-err" className="field-error">
+              {errors.identifier}
             </span>
           )}
         </div>

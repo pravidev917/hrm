@@ -16,7 +16,7 @@ public record AdminDashboardDTO(
         LeaveSummary leaves,
         ClientSummary clients,
         List<PendingLeave> pendingLeaveQueue,
-        List<PendingEmployee> pendingEmployees
+        List<RecentEmployee> recentEmployees
 ) {
 
     public record PeopleSummary(
@@ -63,11 +63,15 @@ public record AdminDashboardDTO(
     ) {
     }
 
-    public record PendingEmployee(
+    /** Newest additions to the team, shown on the dashboard. */
+    public record RecentEmployee(
             Long employeeId,
+            String employeeCode,
             String employeeName,
             String email,
-            String role
+            String role,
+            String department,
+            String accountStatus
     ) {
     }
 }

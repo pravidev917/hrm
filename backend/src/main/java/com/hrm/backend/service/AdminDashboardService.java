@@ -97,13 +97,15 @@ public class AdminDashboardService {
                 .map(this::toPendingLeave)
                 .toList();
 
-        List<AdminDashboardDTO.PendingEmployee> signUps = employeeRepository
-                .searchByAdmin(adminId, null, "PENDING",
+        // Administrators create accounts themselves, so there is nothing to approve:
+        // surface the newest team members instead.
+        List<AdminDashboardDTO.RecentEmployee> recentTeam = employeeRepository
+                .searchByAdmin(adminId, null, null,
                         org.springframework.data.domain.PageRequest.of(0, 5,
                                 org.springframework.data.domain.Sort.by("createdAt").descending()))
                 .getContent()
                 .stream()
-                .map(this::toPendingEmployee)
+                .map(this::toRecentEmployee)
                 .toList();
 
         long totalClients = clientRepository.findByAdminAdminId(adminId).size();
@@ -121,7 +123,7 @@ public class AdminDashboardService {
                         approvedDaysThisMonth == null ? BigDecimal.ZERO : approvedDaysThisMonth),
                 new AdminDashboardDTO.ClientSummary(totalClients, activeClients),
                 queue,
-                signUps
+                recentTeam
         );
     }
 
@@ -138,12 +140,15 @@ public class AdminDashboardService {
         );
     }
 
-    private AdminDashboardDTO.PendingEmployee toPendingEmployee(Employee employee) {
-        return new AdminDashboardDTO.PendingEmployee(
+    private AdminDashboardDTO.RecentEmployee toRecentEmployee(Employee employee) {
+        return new AdminDashboardDTO.RecentEmployee(
                 employee.getEmployeeId(),
+                employee.getEmployeeCode(),
                 employee.getEmployeeName(),
                 employee.getEmail(),
-                employee.getRole()
+                employee.getRole(),
+                employee.getDepartment(),
+                employee.getAccountStatus()
         );
     }
 }

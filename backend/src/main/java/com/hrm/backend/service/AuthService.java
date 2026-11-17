@@ -1,7 +1,7 @@
-
 package com.hrm.backend.service;
 
-import com.hrm.backend.dto.*;
+import com.hrm.backend.dto.AuthResponse;
+import com.hrm.backend.dto.LoginRequest;
 import com.hrm.backend.entity.Admin;
 import com.hrm.backend.entity.Employee;
 import com.hrm.backend.repository.AdminRepository;
@@ -13,6 +13,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.util.Locale;
+import java.util.Optional;
 
 @Service
 public class AuthService {
@@ -33,99 +36,12 @@ public class AuthService {
         this.jwtService = jwtService;
     }
 
-    // ADMIN REGISTRATION
-    @Transactional
-    public AuthResponse registerAdmin(AdminRegisterRequest request) {
-        if (adminRepository.count() > 0) {
-            throw new ResponseStatusException(
-                HttpStatus.FORBIDDEN,
-                "Admin registration is closed. Contact an existing administrator."
-            );
-        }
-        String email = request.getEmail().trim().toLowerCase();
+    // ADMIN LOGIN (email + password)
 
-        if (adminRepository.existsByEmail(email)
-                || employeeRepository.existsByEmail(email)) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "Email is already registered"
-            );
-        }
-
-        Admin admin = new Admin();
-
-        admin.setAdminName(request.getAdminName().trim());
-        admin.setEmail(email);
-        admin.setPassword(passwordEncoder.encode(request.getPassword()));
-        admin.setRoleAccessLevel("ADMIN");
-        admin.setContactDetails(request.getContactDetails());
-        admin.setStatus("ACTIVE");
-
-        Admin savedAdmin = adminRepository.save(admin);
-
-        return new AuthResponse(
-                "Admin registered successfully",
-                savedAdmin.getAdminId(),
-                savedAdmin.getAdminName(),
-                savedAdmin.getEmail(),
-                "ADMIN",
-                savedAdmin.getStatus()
-        );
-    }
-
-    // EMPLOYEE REGISTRATION
-    @Transactional
-    public AuthResponse registerEmployee(EmployeeRegisterRequest request) {
-        String email = request.getEmail().trim().toLowerCase();
-
-        if (adminRepository.existsByEmail(email)
-                || employeeRepository.existsByEmail(email)) {
-            throw new ResponseStatusException(
-                    HttpStatus.CONFLICT,
-                    "Email is already registered"
-            );
-        }
-
-        Admin admin = adminRepository.findById(request.getAdminId())
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Admin not found"
-                ));
-
-        if (!"ACTIVE".equals(admin.getStatus())) {
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "Admin account is inactive"
-            );
-        }
-
-        Employee employee = new Employee();
-
-        employee.setAdmin(admin);
-        employee.setEmployeeName(request.getEmployeeName().trim());
-        employee.setEmail(email);
-        employee.setPassword(passwordEncoder.encode(request.getPassword()));
-        employee.setRole(request.getRole().trim());
-        employee.setContact(request.getContact());
-        employee.setAccountStatus("PENDING");
-
-        Employee savedEmployee = employeeRepository.save(employee);
-
-        return new AuthResponse(
-                "Employee registered. Awaiting admin approval.",
-                savedEmployee.getEmployeeId(),
-                savedEmployee.getEmployeeName(),
-                savedEmployee.getEmail(),
-                "EMPLOYEE",
-                savedEmployee.getAccountStatus()
-        );
-    }
-
-    // ADMIN LOGIN
     @Transactional(readOnly = true)
     public LoginResult loginAdmin(LoginRequest request) {
 
-        String email = request.getEmail().trim().toLowerCase();
+        String email = request.getIdentifier().trim().toLowerCase(Locale.ROOT);
 
         Admin admin = adminRepository.findByEmail(email)
                 .orElseThrow(() -> new ResponseStatusException(
@@ -165,29 +81,22 @@ public class AuthService {
         return new LoginResult(token, response);
     }
 
-    // EMPLOYEE LOGIN
+    // EMPLOYEE LOGIN (email, phone number or employee ID + password)
+
     @Transactional(readOnly = true)
     public LoginResult loginEmployee(LoginRequest request) {
 
-        String email = request.getEmail().trim().toLowerCase();
-
-        Employee employee = employeeRepository.findByEmail(email)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.UNAUTHORIZED,
-                        "Invalid email or password"
-                ));
+        Employee employee = findByLoginIdentifier(request.getIdentifier())
+                .orElseThrow(AuthService::invalidCredentials);
 
         if (!passwordEncoder.matches(request.getPassword(), employee.getPassword())) {
-            throw new ResponseStatusException(
-                    HttpStatus.UNAUTHORIZED,
-                    "Invalid email or password"
-            );
+            throw invalidCredentials();
         }
 
         if (!"APPROVED".equals(employee.getAccountStatus())) {
             throw new ResponseStatusException(
                     HttpStatus.FORBIDDEN,
-                    "Employee account is not approved"
+                    "Employee account is inactive. Contact your administrator."
             );
         }
 
@@ -209,99 +118,53 @@ public class AuthService {
         return new LoginResult(token, response);
     }
 
+    /**
+     * Resolve an employee by any of the accepted sign-in identifiers:
+     * email (case-insensitive), employee ID (case-insensitive) or phone number.
+     */
+    private Optional<Employee> findByLoginIdentifier(String rawIdentifier) {
+
+        if (rawIdentifier == null || rawIdentifier.isBlank()) {
+            return Optional.empty();
+        }
+
+        String identifier = rawIdentifier.trim();
+
+        Optional<Employee> byEmail = employeeRepository.findByEmail(
+                identifier.toLowerCase(Locale.ROOT));
+        if (byEmail.isPresent()) {
+            return byEmail;
+        }
+
+        Optional<Employee> byCode = employeeRepository
+                .findByEmployeeCodeIgnoreCase(identifier);
+        if (byCode.isPresent()) {
+            return byCode;
+        }
+
+        // Phone numbers: try the exact value first, then a digits-only match so
+        // "+91 98765 43210" and "9876543210" reach the same account.
+        Optional<Employee> byPhone = employeeRepository.findByContact(identifier);
+        if (byPhone.isPresent()) {
+            return byPhone;
+        }
+
+        String digits = identifier.replaceAll("[^0-9]", "");
+        if (digits.length() >= 7 && !digits.equals(identifier)) {
+            return employeeRepository.findByContact(digits);
+        }
+
+        return Optional.empty();
+    }
+
+    private static ResponseStatusException invalidCredentials() {
+        return new ResponseStatusException(
+                HttpStatus.UNAUTHORIZED,
+                "Invalid email, phone, employee ID or password"
+        );
+    }
+
     // Login result: token is used for the cookie, response is returned to frontend
     public record LoginResult(String token, AuthResponse response) {
     }
-
-   
-    // APPROVE EMPLOYEE
-    @Transactional
-    public AuthResponse approveEmployee(Long employeeId, String adminEmail) {
-
-        Admin admin = adminRepository.findByEmail(adminEmail)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Admin not found"
-                ));
-
-        Employee employee = employeeRepository.findById(employeeId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Employee not found"
-                ));
-
-        // Verify employee belongs to this admin
-        if (!employee.getAdmin().getAdminId().equals(admin.getAdminId())) {
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "You cannot manage employees belonging to another admin"
-            );
-        }
-
-        if (!"PENDING".equals(employee.getAccountStatus())) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Employee is not awaiting approval"
-            );
-        }
-
-        employee.setAccountStatus("APPROVED");
-
-        Employee savedEmployee = employeeRepository.save(employee);
-
-        return new AuthResponse(
-                "Employee approved successfully",
-                savedEmployee.getEmployeeId(),
-                savedEmployee.getEmployeeName(),
-                savedEmployee.getEmail(),
-                "EMPLOYEE",
-                savedEmployee.getAccountStatus()
-        );
-    }
-
-    // REJECT EMPLOYEE
-    @Transactional
-    public AuthResponse rejectEmployee(Long employeeId, String adminEmail) {
-
-        Admin admin = adminRepository.findByEmail(adminEmail)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Admin not found"
-                ));
-
-        Employee employee = employeeRepository.findById(employeeId)
-                .orElseThrow(() -> new ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Employee not found"
-                ));
-
-        // Verify employee belongs to this admin
-        if (!employee.getAdmin().getAdminId().equals(admin.getAdminId())) {
-            throw new ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "You cannot manage employees belonging to another admin"
-            );
-        }
-
-        if (!"PENDING".equals(employee.getAccountStatus())) {
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST,
-                    "Employee is not awaiting approval"
-            );
-        }
-
-        employee.setAccountStatus("REJECTED");
-
-        Employee savedEmployee = employeeRepository.save(employee);
-
-        return new AuthResponse(
-                "Employee rejected successfully",
-                savedEmployee.getEmployeeId(),
-                savedEmployee.getEmployeeName(),
-                savedEmployee.getEmail(),
-                "EMPLOYEE",
-                savedEmployee.getAccountStatus()
-        );
-    }
-
 }

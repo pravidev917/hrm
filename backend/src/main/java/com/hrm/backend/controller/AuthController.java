@@ -25,16 +25,6 @@ public class AuthController {
         this.authService = authService;
     }
 
-    // Admin registration
-    @PostMapping("/admin/register")
-    public ResponseEntity<AuthResponse> registerAdmin(
-            @Valid @RequestBody AdminRegisterRequest request) {
-
-        AuthResponse response = authService.registerAdmin(request);
-
-        return ResponseEntity.ok(response);
-    }
-
     // Admin login
     @PostMapping("/admin/login")
     public ResponseEntity<AuthResponse> loginAdmin(
@@ -49,17 +39,7 @@ public class AuthController {
                 .body(result.response());
     }
 
-    // Employee registration
-    @PostMapping("/employee/register")
-    public ResponseEntity<AuthResponse> registerEmployee(
-            @Valid @RequestBody EmployeeRegisterRequest request) {
-
-        AuthResponse response = authService.registerEmployee(request);
-
-        return ResponseEntity.ok(response);
-    }
-
-    // Employee login
+    // Employee login: email, phone number or employee ID + password
     @PostMapping("/employee/login")
     public ResponseEntity<AuthResponse> loginEmployee(
             @Valid @RequestBody LoginRequest request) {

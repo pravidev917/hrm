@@ -22,6 +22,14 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
 
     Optional<Employee> findByEmail(String email);
 
+    boolean existsByEmployeeCodeIgnoreCase(String employeeCode);
+
+    Optional<Employee> findByEmployeeCodeIgnoreCase(String employeeCode);
+
+    boolean existsByContact(String contact);
+
+    Optional<Employee> findByContact(String contact);
+
     /**
      * Admin-scoped employee search with optional name/email/designation term and status.
      * Organisation scoping is enforced in SQL (admin_id), not in the browser.

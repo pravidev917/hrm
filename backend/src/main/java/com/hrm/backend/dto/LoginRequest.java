@@ -1,6 +1,5 @@
 package com.hrm.backend.dto;
 
-import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Getter;
 import lombok.Setter;
@@ -9,9 +8,13 @@ import lombok.Setter;
 @Setter
 public class LoginRequest {
 
-    @NotBlank(message = "Email is required")
-    @Email(message = "Enter a valid email")
-    private String email;
+    /**
+     * Sign-in identifier.
+     * Administrators sign in with their email; employees sign in with their
+     * email, phone number or employee ID.
+     */
+    @NotBlank(message = "Email, phone or employee ID is required")
+    private String identifier;
 
     @NotBlank(message = "Password is required")
     private String password;

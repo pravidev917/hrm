@@ -28,4 +28,7 @@ public interface FeedbackRepository extends JpaRepository<Feedback, Long> {
             Long feedbackId,
             Long adminId
     );
+
+    // Cascade cleanup when an administrator deletes an employee.
+    long deleteByEmployee_EmployeeId(Long employeeId);
 }

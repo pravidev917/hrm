@@ -70,9 +70,7 @@ public class SecurityConfig {
                 .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
 
                 .requestMatchers(
-                    "/api/auth/admin/register",
                     "/api/auth/admin/login",
-                    "/api/auth/employee/register",
                     "/api/auth/employee/login",
                     "/api/auth/logout"
                 ).permitAll()

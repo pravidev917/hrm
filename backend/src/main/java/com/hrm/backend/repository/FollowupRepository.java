@@ -28,4 +28,7 @@ public interface FollowupRepository extends JpaRepository<Followup, Long> {
             Long followupId,
             Long adminId
     );
+
+    // Cascade cleanup when an administrator deletes an employee.
+    long deleteByEmployee_EmployeeId(Long employeeId);
 }

@@ -1,6 +1,7 @@
 package com.hrm.backend.dto;
 
 import com.hrm.backend.entity.Employee;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 
@@ -11,10 +12,13 @@ import java.time.LocalDateTime;
  */
 public record EmployeeResponseDTO(
         Long employeeId,
+        String employeeCode,
         String employeeName,
         String email,
         String role,
         String contact,
+        String department,
+        BigDecimal salary,
         String accountStatus,
         LocalDate dateOfBirth,
         LocalDate joiningDate,
@@ -26,10 +30,13 @@ public record EmployeeResponseDTO(
     public static EmployeeResponseDTO from(Employee employee) {
         return new EmployeeResponseDTO(
                 employee.getEmployeeId(),
+                employee.getEmployeeCode(),
                 employee.getEmployeeName(),
                 employee.getEmail(),
                 employee.getRole(),
                 employee.getContact(),
+                employee.getDepartment(),
+                employee.getSalary(),
                 employee.getAccountStatus(),
                 employee.getDateOfBirth(),
                 employee.getJoiningDate(),

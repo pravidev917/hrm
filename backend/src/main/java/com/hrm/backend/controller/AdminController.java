@@ -1,67 +1,56 @@
 
 package com.hrm.backend.controller;
-
-import com.hrm.backend.dto.AuthResponse;
+import com.hrm.backend.dto.EmployeeCreateRequest;
 import com.hrm.backend.dto.EmployeeResponseDTO;
 import com.hrm.backend.dto.EmployeeUpdateRequest;
 import com.hrm.backend.entity.Employee;
 import com.hrm.backend.service.AdminService;
-import com.hrm.backend.service.AuthService;
 import com.hrm.backend.service.EmployeeService;
 
 import jakarta.validation.Valid;
 
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.data.domain.Page;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin")
 public class AdminController {
 
-    private final AuthService authService;
     private final EmployeeService employeeService;
     private final AdminService adminService;
 
     public AdminController(
-            AuthService authService,
             EmployeeService employeeService,
             AdminService adminService) {
 
-        this.authService = authService;
         this.employeeService = employeeService;
         this.adminService = adminService;
     }
 
-    // EMPLOYEE APPROVAL
+    // CREATE EMPLOYEE
 
-    @PutMapping("/employees/{employeeId}/approve")
-    public ResponseEntity<AuthResponse> approveEmployee(
-            @PathVariable Long employeeId,
+    @PostMapping("/employees")
+    public ResponseEntity<EmployeeResponseDTO> createEmployee(
+            @Valid @RequestBody EmployeeCreateRequest request,
             Authentication authentication) {
 
-        AuthResponse response = authService.approveEmployee(
-                employeeId,
+        Long adminId = adminService.getAdminIdByEmail(
                 authentication.getName()
         );
 
-        return ResponseEntity.ok(response);
-    }
-
-    @PutMapping("/employees/{employeeId}/reject")
-    public ResponseEntity<AuthResponse> rejectEmployee(
-            @PathVariable Long employeeId,
-            Authentication authentication) {
-
-        AuthResponse response = authService.rejectEmployee(
-                employeeId,
-                authentication.getName()
+        Employee created = employeeService.createEmployeeForAdmin(
+                adminId,
+                request
         );
 
-        return ResponseEntity.ok(response);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(EmployeeResponseDTO.from(created));
     }
 
     // EMPLOYEE LISTING
@@ -191,6 +180,24 @@ public class AdminController {
 
         return ResponseEntity.ok(
                 EmployeeResponseDTO.from(employee)
+        );
+    }
+
+    // DELETE EMPLOYEE
+
+    @DeleteMapping("/employees/{employeeId}")
+    public ResponseEntity<Map<String, String>> deleteEmployee(
+            @PathVariable Long employeeId,
+            Authentication authentication) {
+
+        Long adminId = adminService.getAdminIdByEmail(
+                authentication.getName()
+        );
+
+        employeeService.deleteEmployeeForAdmin(employeeId, adminId);
+
+        return ResponseEntity.ok(
+                Map.of("message", "Employee deleted")
         );
     }
 }

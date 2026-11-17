@@ -53,4 +53,7 @@ public interface WeeklyReportRepository
             Long employeeId,
             LocalDate weekStartDate,
             LocalDate weekEndDate);
+
+    // Cascade cleanup when an administrator deletes an employee.
+    long deleteByEmployeeEmployeeId(Long employeeId);
 }

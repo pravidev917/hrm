@@ -1,17 +1,16 @@
 import Icon from './Icon'
+import Brand from './Brand'
+import { brand } from '../../config/brand'
 
 /** Split auth layout: brand story on the left (desktop), form card on the right. */
 export default function AuthShell({ title, subtitle, children, footer }) {
   return (
     <div className="auth-page auth-split">
       <aside className="auth-aside" aria-hidden="true">
-        <div className="brand">
-          <span className="brand-mark">H</span>
-          <span>HRM</span>
-        </div>
+        <Brand />
         <div>
-          <h2>People operations in one calm place.</h2>
-          <p>Attendance, leave, reports and performance for your whole team — without spreadsheets.</p>
+          <h2>{brand.signInHeadline}</h2>
+          <p>{brand.signInBlurb}</p>
           <ul className="auth-points">
             <li>
               <Icon name="calendar" size={16} /> Request and approve leave with automatic working-day counts
@@ -24,16 +23,15 @@ export default function AuthShell({ title, subtitle, children, footer }) {
             </li>
           </ul>
         </div>
-        <p className="small">© {new Date().getFullYear()} HRM</p>
+        <p className="small">
+          © {new Date().getFullYear()} {brand.name}
+        </p>
       </aside>
 
       <main className="auth-main">
         <div className="auth-card">
           <div className="auth-card-panel">
-            <div className="brand brand-center">
-              <span className="brand-mark">H</span>
-              <span>HRM</span>
-            </div>
+            <Brand center />
             <h1>{title}</h1>
             {subtitle && <p className="muted">{subtitle}</p>}
             {children}

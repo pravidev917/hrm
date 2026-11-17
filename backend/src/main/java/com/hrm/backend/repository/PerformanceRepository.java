@@ -27,4 +27,7 @@ public interface PerformanceRepository
             Long performanceId,
             Long adminId
     );
+
+    // Cascade cleanup when an administrator deletes an employee.
+    long deleteByEmployee_EmployeeId(Long employeeId);
 }

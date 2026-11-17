@@ -13,4 +13,7 @@ public interface MonthlyPerformanceRepository
             Integer year, Integer month);
 
     List<MonthlyPerformance> findByYear(Integer year);
+
+    // Cascade cleanup when an administrator deletes an employee.
+    long deleteByEmployeeId(Long employeeId);
 }
