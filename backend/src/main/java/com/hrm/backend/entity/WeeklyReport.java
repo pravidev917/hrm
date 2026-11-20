@@ -32,6 +32,16 @@ public class WeeklyReport {
     @EqualsAndHashCode.Exclude
     private Employee employee;
 
+    /**
+     * Optional client the week's results belong to. Nullable on purpose: weeks
+     * filed before client selection existed stay valid.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "client_id")
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    private Client client;
+
     @Column(name = "week_number", nullable = false)
     private Integer weekNumber;
 

@@ -39,6 +39,15 @@ public class Admin {
     @Column(nullable = false, length = 20)
     private String status = "ACTIVE";
 
+    /**
+     * The company this administrator works for. Assigned when the account is
+     * created (creator's company) and never editable through the API, so an
+     * administrator cannot move itself or another account into another company.
+     */
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "company_id", nullable = false)
+    private Company company;
+
     @JsonIgnore
     @OneToMany(mappedBy = "admin")
     @ToString.Exclude

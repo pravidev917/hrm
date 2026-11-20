@@ -48,12 +48,12 @@ public class LeaderboardService {
     @Transactional(readOnly = true)
     public LeaderboardDTO build(Long adminId, LocalDate start, LocalDate end, String viewerEmail) {
 
-        List<Employee> employees = employeeRepository.findByAdminAdminId(adminId);
+        List<Employee> employees = employeeRepository.findByCompanyOf(adminId);
 
         // employeeId -> [resumes, sourced, contacted, connected, reports]
         Map<Long, long[]> totals = new LinkedHashMap<>();
 
-        for (DailyReport report : dailyReportRepository.findByEmployeeAdminAdminId(adminId)) {
+        for (DailyReport report : dailyReportRepository.findByEmployeeInCompanyOf(adminId)) {
             LocalDate date = report.getReportDate();
             if (date == null || date.isBefore(start) || date.isAfter(end)) continue;
 

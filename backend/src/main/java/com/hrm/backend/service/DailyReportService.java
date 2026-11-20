@@ -2,8 +2,10 @@
 package com.hrm.backend.service;
 
 import com.hrm.backend.dto.DailyReportResponseDTO;
+import com.hrm.backend.dto.PlatformCountDTO;
 import com.hrm.backend.entity.Client;
 import com.hrm.backend.entity.DailyReport;
+import com.hrm.backend.entity.DailyReportPlatformCount;
 import com.hrm.backend.entity.Employee;
 import com.hrm.backend.repository.ClientRepository;
 import com.hrm.backend.repository.DailyReportRepository;
@@ -13,7 +15,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -22,15 +28,29 @@ public class DailyReportService {
     private final DailyReportRepository reportRepository;
     private final EmployeeRepository employeeRepository;
     private final ClientRepository clientRepository;
+    private final CompanyScopeService companyScope;
 
     public DailyReportService(
             DailyReportRepository reportRepository,
             EmployeeRepository employeeRepository,
-            ClientRepository clientRepository) {
+            ClientRepository clientRepository,
+            CompanyScopeService companyScope) {
 
         this.reportRepository = reportRepository;
         this.employeeRepository = employeeRepository;
         this.clientRepository = clientRepository;
+        this.companyScope = companyScope;
+    }
+
+    /** Compares the companies of an employee and a client, not their creators. */
+    private boolean sameCompany(Employee employee, Client client) {
+        if (employee.getAdmin() == null || employee.getAdmin().getCompany() == null
+                || client.getAdmin() == null || client.getAdmin().getCompany() == null) {
+            return false;
+        }
+        Long employeeCompany = employee.getAdmin().getCompany().getCompanyId();
+        Long clientCompany = client.getAdmin().getCompany().getCompanyId();
+        return employeeCompany != null && employeeCompany.equals(clientCompany);
     }
 
     // Validate report counts
@@ -102,8 +122,78 @@ public class DailyReportService {
                 report.getCandidatesContacted(),
                 report.getConnectedCount(),
                 report.getReportDate(),
-                report.getRemarks()
+                report.getRemarks(),
+                report.getSourcingPlatform(),
+                report.getPlatformCounts() == null
+                        ? List.of()
+                        : report.getPlatformCounts().stream()
+                                .map(row -> new PlatformCountDTO(row.getPlatform(), row.getProfileCount()))
+                                .toList()
         );
+    }
+
+    /**
+     * Validates and replaces the report's per-platform rows.
+     *
+     * Platform counts must reconcile with candidatesSourced; the old single
+     * platform field is kept in sync with the largest platform for display.
+     */
+    private void applyPlatforms(DailyReport report, DailyReport request, int sourced) {
+
+        List<DailyReportPlatformCount> incoming = request.getPlatformCounts();
+        String single = trimToNull(request.getSourcingPlatform());
+
+        Map<String, Integer> merged = new LinkedHashMap<>();
+        if (incoming != null) {
+            for (DailyReportPlatformCount row : incoming) {
+                if (row == null) continue;
+                String name = trimToNull(row.getPlatform());
+                int count = row.getProfileCount() == null ? 0 : row.getProfileCount();
+                if (count < 0) {
+                    throw new RuntimeException("Platform profile counts cannot be negative");
+                }
+                if (count == 0) continue;
+                if (name == null) {
+                    throw new RuntimeException("Choose a sourcing platform for every profile count");
+                }
+                if (name.length() > 80) {
+                    throw new RuntimeException("Sourcing platform cannot exceed 80 characters");
+                }
+                merged.merge(name, count, Integer::sum);
+            }
+        }
+
+        // Backwards-compatible single-platform payload.
+        if (merged.isEmpty() && single != null && sourced > 0) {
+            merged.put(single, sourced);
+        }
+
+        int platformTotal = merged.values().stream().mapToInt(Integer::intValue).sum();
+        if (!merged.isEmpty() && platformTotal != sourced) {
+            throw new RuntimeException(
+                    "Platform counts add up to " + platformTotal
+                            + " but candidates sourced is " + sourced
+                            + ". They must match so the same profiles are not counted twice.");
+        }
+
+        report.getPlatformCounts().clear();
+        for (Map.Entry<String, Integer> entry : merged.entrySet()) {
+            DailyReportPlatformCount row = new DailyReportPlatformCount();
+            row.setDailyReport(report);
+            row.setPlatform(entry.getKey());
+            row.setProfileCount(entry.getValue());
+            report.getPlatformCounts().add(row);
+        }
+
+        report.setSourcingPlatform(merged.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse(null));
+    }
+
+    private String trimToNull(String value) {
+        if (value == null || value.isBlank()) return null;
+        return value.trim();
     }
 
     // Submit daily report
@@ -121,10 +211,11 @@ public class DailyReportService {
                 .orElseThrow(() ->
                         new RuntimeException("Client not found"));
 
-        if (!employee.getAdmin().getAdminId()
-                .equals(client.getAdmin().getAdminId())) {
+        // Employees and clients are both company data, so a report may reference a
+        // client another administrator of the same company created.
+        if (!sameCompany(employee, client)) {
             throw new RuntimeException(
-                    "Access denied: Client does not belong to your admin");
+                    "Access denied: Client does not belong to this company");
         }
 
         if (!"ACTIVE".equals(client.getStatus())) {
@@ -160,6 +251,7 @@ public class DailyReportService {
         report.setCandidatesContacted(contacted);
         report.setConnectedCount(connected);
         report.setRemarks(request.getRemarks());
+        applyPlatforms(report, request, sourced);
 
         return convertToDTO(reportRepository.save(report));
     }
@@ -197,7 +289,7 @@ public class DailyReportService {
             Long adminId) {
 
         return reportRepository
-                .findByEmployeeAdminAdminId(adminId)
+                .findByEmployeeInCompanyOf(adminId)
                 .stream()
                 .map(this::convertToDTO)
                 .toList();
@@ -211,8 +303,7 @@ public class DailyReportService {
 
         DailyReport report = getReportById(reportId);
 
-        if (!report.getEmployee().getAdmin().getAdminId()
-                .equals(adminId)) {
+        if (!companyScope.manages(adminId, report.getEmployee())) {
             throw new RuntimeException("Access denied");
         }
 
@@ -268,7 +359,7 @@ public class DailyReportService {
         }
 
         return reportRepository
-                .findByEmployeeAdminAdminIdAndReportDateBetween(
+                .findByEmployeeInCompanyOfAndReportDateBetween(
                         adminId, startDate, endDate)
                 .stream()
                 .map(this::convertToDTO)
@@ -297,8 +388,7 @@ public class DailyReportService {
                     .orElseThrow(() ->
                             new RuntimeException("Client not found"));
 
-            if (!existing.getEmployee().getAdmin().getAdminId()
-                    .equals(client.getAdmin().getAdminId())) {
+            if (!sameCompany(existing.getEmployee(), client)) {
                 throw new RuntimeException("Access denied");
             }
 
@@ -347,6 +437,8 @@ public class DailyReportService {
         if (request.getRemarks() != null) {
             existing.setRemarks(request.getRemarks());
         }
+
+        applyPlatforms(existing, request, sourced);
 
         return convertToDTO(reportRepository.save(existing));
     }

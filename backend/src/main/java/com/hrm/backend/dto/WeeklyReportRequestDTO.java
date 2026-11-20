@@ -24,4 +24,10 @@ public class WeeklyReportRequestDTO {
     private Integer joined = 0;
 
     private BigDecimal revenueGenerated = BigDecimal.ZERO;
+
+    /**
+     * Optional client the week belongs to. Null leaves the report without a
+     * client (weeks filed before client selection existed).
+     */
+    private Long clientId;
 }

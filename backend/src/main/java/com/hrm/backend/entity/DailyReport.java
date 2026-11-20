@@ -5,6 +5,8 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "daily_reports")
@@ -47,4 +49,16 @@ public class DailyReport {
 
     @Column(name = "remarks", columnDefinition = "TEXT")
     private String remarks;
+
+    /**
+     * Single-platform fallback for older/simple reports. New reports also send
+     * per-platform counts; when those exist they are authoritative.
+     */
+    @Column(name = "sourcing_platform", length = 80)
+    private String sourcingPlatform;
+
+    @OneToMany(mappedBy = "dailyReport", cascade = CascadeType.ALL, orphanRemoval = true)
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    private List<DailyReportPlatformCount> platformCounts = new ArrayList<>();
 }

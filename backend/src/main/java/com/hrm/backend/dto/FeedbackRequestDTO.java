@@ -67,10 +67,16 @@ public class FeedbackRequestDTO {
 
     /** SOURCED, INTERVIEW_SCHEDULED, INTERVIEW_ATTENDED, SELECTED, JOINED, REJECTED, DROPPED */
     @Pattern(
-            regexp = "^(SOURCED|INTERVIEW_SCHEDULED|INTERVIEW_ATTENDED|SELECTED|JOINED|REJECTED|DROPPED)$",
-            message = "Status must be one of: SOURCED, INTERVIEW_SCHEDULED, INTERVIEW_ATTENDED, SELECTED, JOINED, REJECTED, DROPPED"
+            regexp = "^(SOURCED|SCREENED|SUBMITTED|INTERVIEW_SCHEDULED|INTERVIEW_ATTENDED|SELECTED|OFFERED|JOINED|REJECTED|WITHDRAWN|DROPPED)$",
+            message = "Status must be one of: SOURCED, SCREENED, SUBMITTED, INTERVIEW_SCHEDULED, INTERVIEW_ATTENDED, SELECTED, OFFERED, JOINED, REJECTED, WITHDRAWN, DROPPED"
     )
     private String status;
+
+    @Size(max = 80, message = "Sourcing platform cannot exceed 80 characters")
+    private String sourcingPlatform;
+
+    /** The date the candidate was sourced; defaults to today for new records. */
+    private LocalDate sourcedDate;
 
     private Boolean googleFeedbackGiven;
 

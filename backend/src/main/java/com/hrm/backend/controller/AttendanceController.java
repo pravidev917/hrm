@@ -1,5 +1,6 @@
 package com.hrm.backend.controller;
 
+import com.hrm.backend.dto.AttendanceMarkRequest;
 import com.hrm.backend.dto.AttendanceResponseDTO;
 import com.hrm.backend.service.AdminService;
 import com.hrm.backend.service.AttendanceService;
@@ -10,6 +11,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+
+import jakarta.validation.Valid;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -37,6 +40,7 @@ public class AttendanceController {
     @PostMapping("/api/employee/attendance")
     public ResponseEntity<AttendanceResponseDTO> markAttendance(
             @RequestParam String status,
+            @Valid @RequestBody(required = false) AttendanceMarkRequest location,
             Authentication authentication) {
 
         Long employeeId = employeeService.getEmployeeIdByEmail(
@@ -44,7 +48,7 @@ public class AttendanceController {
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(attendanceService.markAttendance(
-                        employeeId, status));
+                        employeeId, status, location));
     }
 
     @GetMapping("/api/employee/attendance")
@@ -101,6 +105,7 @@ public class AttendanceController {
     updateEmployeeAttendance(
             @PathVariable Long attendanceId,
             @RequestParam String status,
+            @Valid @RequestBody(required = false) AttendanceMarkRequest location,
             Authentication authentication) {
 
         Long employeeId = employeeService.getEmployeeIdByEmail(
@@ -110,7 +115,8 @@ public class AttendanceController {
                 attendanceService.updateEmployeeAttendance(
                         employeeId,
                         attendanceId,
-                        status));
+                        status,
+                        location));
     }
 
     // ================= ADMIN =================
@@ -170,6 +176,7 @@ public class AttendanceController {
     updateAdminAttendance(
             @PathVariable Long attendanceId,
             @RequestParam String status,
+            @RequestParam(required = false) String workMode,
             Authentication authentication) {
 
         Long adminId = adminService.getAdminIdByEmail(
@@ -179,7 +186,8 @@ public class AttendanceController {
                 attendanceService.updateAdminAttendance(
                         adminId,
                         attendanceId,
-                        status));
+                        status,
+                        workMode));
     }
 
     @DeleteMapping("/api/admin/attendance/{attendanceId}")

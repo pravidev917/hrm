@@ -2,6 +2,7 @@
 package com.hrm.backend.repository;
 
 import com.hrm.backend.entity.DailyReport;
+import com.hrm.backend.dto.DailyReportDayTotals;
 import com.hrm.backend.dto.DailyReportTotals;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -45,8 +46,13 @@ public interface DailyReportRepository extends JpaRepository<DailyReport, Long> 
             LocalDate reportDate
     );
 
-    // Reports belonging to a particular admin
-    List<DailyReport> findByEmployeeAdminAdminId(Long adminId);
+    // Reports of the administrator's whole company (shared records)
+    @Query("""
+            SELECT r FROM DailyReport r
+            WHERE r.employee.admin.company.companyId =
+                  (SELECT adm.company.companyId FROM Admin adm WHERE adm.adminId = :adminId)
+            """)
+    List<DailyReport> findByEmployeeInCompanyOf(@Param("adminId") Long adminId);
 
     // Reports belonging to an employee and client
     List<DailyReport> findByEmployeeEmployeeIdAndClientClientId(
@@ -54,13 +60,56 @@ public interface DailyReportRepository extends JpaRepository<DailyReport, Long> 
             Long clientId
     );
 
-    // Reports belonging to an admin within date range
-    List<DailyReport> findByEmployeeAdminAdminIdAndReportDateBetween(
-            Long adminId,
-            LocalDate startDate,
-            LocalDate endDate
+    // Reports of the administrator's company within a date range
+    @Query("""
+            SELECT r FROM DailyReport r
+            WHERE r.employee.admin.company.companyId =
+                  (SELECT adm.company.companyId FROM Admin adm WHERE adm.adminId = :adminId)
+              AND r.reportDate BETWEEN :startDate AND :endDate
+            """)
+    List<DailyReport> findByEmployeeInCompanyOfAndReportDateBetween(
+            @Param("adminId") Long adminId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
     );
 
     // Cascade cleanup when an administrator deletes an employee.
     long deleteByEmployeeEmployeeId(Long employeeId);
+
+    // Used before deleting a client: a client that reports point at is retired, not removed.
+    long countByClientClientId(Long clientId);
+
+    /**
+     * Reports, distinct employees and resumes submitted across one company on
+     * one date. One query, counted in the database, used by the dashboard card.
+     */
+    @Query("""
+            SELECT new com.hrm.backend.dto.DailyReportDayTotals(
+                COUNT(r),
+                COUNT(DISTINCT r.employee.employeeId),
+                COALESCE(SUM(r.profilesSubmitted), 0))
+            FROM DailyReport r
+            WHERE r.employee.admin.company.companyId =
+                  (SELECT adm.company.companyId FROM Admin adm WHERE adm.adminId = :adminId)
+              AND r.reportDate = :date
+            """)
+    DailyReportDayTotals getCompanyDayTotals(
+            @Param("adminId") Long adminId,
+            @Param("date") LocalDate date);
+
+    /** Same shape as the day totals, for a date range (used for month-to-date figures). */
+    @Query("""
+            SELECT new com.hrm.backend.dto.DailyReportDayTotals(
+                COUNT(r),
+                COUNT(DISTINCT r.employee.employeeId),
+                COALESCE(SUM(r.profilesSubmitted), 0))
+            FROM DailyReport r
+            WHERE r.employee.admin.company.companyId =
+                  (SELECT adm.company.companyId FROM Admin adm WHERE adm.adminId = :adminId)
+              AND r.reportDate BETWEEN :from AND :to
+            """)
+    DailyReportDayTotals getCompanyRangeTotals(
+            @Param("adminId") Long adminId,
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to);
 }

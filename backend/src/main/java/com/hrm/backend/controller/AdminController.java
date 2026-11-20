@@ -2,6 +2,7 @@
 package com.hrm.backend.controller;
 import com.hrm.backend.dto.AdminCreateRequest;
 import com.hrm.backend.dto.AdminResponseDTO;
+import com.hrm.backend.dto.AdminUpdateRequest;
 import com.hrm.backend.dto.EmployeeCreateRequest;
 import com.hrm.backend.dto.EmployeeResponseDTO;
 import com.hrm.backend.dto.EmployeeUpdateRequest;
@@ -39,10 +40,12 @@ public class AdminController {
     // ADMINISTRATORS
 
     @GetMapping("/admins")
-    public ResponseEntity<List<AdminResponseDTO>> getAdmins() {
+    public ResponseEntity<List<AdminResponseDTO>> getAdmins(Authentication authentication) {
+
+        Long actorId = adminService.getAdminIdByEmail(authentication.getName());
 
         return ResponseEntity.ok(
-                adminService.getAllAdmins()
+                adminService.getAllAdmins(actorId)
                         .stream()
                         .map(AdminResponseDTO::from)
                         .toList()
@@ -51,12 +54,97 @@ public class AdminController {
 
     @PostMapping("/admins")
     public ResponseEntity<AdminResponseDTO> createAdmin(
-            @Valid @RequestBody AdminCreateRequest request) {
+            @Valid @RequestBody AdminCreateRequest request,
+            Authentication authentication) {
 
-        Admin created = adminService.createAdminAccount(request);
+        Long actorId = adminService.getAdminIdByEmail(authentication.getName());
+        Admin created = adminService.createAdminAccount(actorId, request);
 
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(AdminResponseDTO.from(created));
+    }
+
+    /** Read-only administrator details. The response never contains the password hash. */
+    @GetMapping("/admins/{adminId}")
+    public ResponseEntity<AdminResponseDTO> getAdmin(
+            @PathVariable Long adminId,
+            Authentication authentication) {
+
+        Long actorId = adminService.getAdminIdByEmail(authentication.getName());
+
+        return ResponseEntity.ok(
+                AdminResponseDTO.from(adminService.getAdminById(actorId, adminId))
+        );
+    }
+
+    /** Edit an administrator. The caller is resolved from the session, never from the body. */
+    @PutMapping("/admins/{adminId}")
+    public ResponseEntity<AdminResponseDTO> updateAdmin(
+            @PathVariable Long adminId,
+            @Valid @RequestBody AdminUpdateRequest request,
+            Authentication authentication) {
+
+        Long actorId = adminService.getAdminIdByEmail(
+                authentication.getName()
+        );
+
+        Admin updated = adminService.updateAdminAccount(
+                actorId,
+                adminId,
+                request
+        );
+
+        return ResponseEntity.ok(
+                AdminResponseDTO.from(updated)
+        );
+    }
+
+    @PatchMapping("/admins/{adminId}/activate")
+    public ResponseEntity<AdminResponseDTO> activateAdmin(
+            @PathVariable Long adminId,
+            Authentication authentication) {
+
+        Long actorId = adminService.getAdminIdByEmail(
+                authentication.getName()
+        );
+
+        Admin admin = adminService.changeAdminStatus(actorId, adminId, true);
+
+        return ResponseEntity.ok(
+                AdminResponseDTO.from(admin)
+        );
+    }
+
+    @PatchMapping("/admins/{adminId}/deactivate")
+    public ResponseEntity<AdminResponseDTO> deactivateAdmin(
+            @PathVariable Long adminId,
+            Authentication authentication) {
+
+        Long actorId = adminService.getAdminIdByEmail(
+                authentication.getName()
+        );
+
+        Admin admin = adminService.changeAdminStatus(actorId, adminId, false);
+
+        return ResponseEntity.ok(
+                AdminResponseDTO.from(admin)
+        );
+    }
+
+    @DeleteMapping("/admins/{adminId}")
+    public ResponseEntity<Map<String, String>> deleteAdmin(
+            @PathVariable Long adminId,
+            Authentication authentication) {
+
+        Long actorId = adminService.getAdminIdByEmail(
+                authentication.getName()
+        );
+
+        adminService.deleteAdminAccount(actorId, adminId);
+
+        return ResponseEntity.ok(
+                Map.of("message", "Administrator deleted")
+        );
     }
 
     // CREATE EMPLOYEE

@@ -24,7 +24,10 @@ public class Employee {
     private Long employeeId;
 
     // Admin relationship
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    // EAGER on purpose: every employee DTO carries the administrator's id and name
+    // (EmployeeResponseDTO.from), and list endpoints map rows outside the service
+    // transaction. A lazy proxy there would throw LazyInitializationException.
+    @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "admin_id", nullable = false)
     @ToString.Exclude
     @EqualsAndHashCode.Exclude

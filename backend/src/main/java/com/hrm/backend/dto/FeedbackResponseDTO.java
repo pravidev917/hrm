@@ -27,7 +27,9 @@ public record FeedbackResponseDTO(
         Boolean interviewAttended,
         String status,
         Boolean googleFeedbackGiven,
-        String comments
+        String comments,
+        String sourcingPlatform,
+        LocalDate sourcedDate
 ) {
 
     public static FeedbackResponseDTO from(Feedback f) {
@@ -54,7 +56,9 @@ public record FeedbackResponseDTO(
                 // legacy rows have no status; surface the old free-text value instead of null
                 f.getStatus() != null ? f.getStatus() : f.getFeedbackReceived(),
                 f.getGoogleFeedbackGiven(),
-                f.getComments()
+                f.getComments(),
+                f.getSourcingPlatform(),
+                f.getSourcedDate()
         );
     }
 }

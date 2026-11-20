@@ -51,8 +51,12 @@ public class EmployeeClientController {
                 .stream()
                 .map(client -> new ClientOptionDTO(
                         client.getClientId(),
+                        client.getClientCode(),
                         client.getClientName(),
+                        client.getVendor(),
+                        client.getPosition(),
                         client.getHrName(),
+                        client.getNumberOfPositions(),
                         client.getStatus()))
                 .toList();
 

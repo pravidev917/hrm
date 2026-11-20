@@ -37,12 +37,24 @@ public interface WeeklyReportRepository
             LocalDate startDate,
             LocalDate endDate);
 
-    List<WeeklyReport> findByEmployeeAdminAdminId(Long adminId);
+    /** Weekly reports of the administrator's whole company (shared records). */
+    @Query("""
+            SELECT r FROM WeeklyReport r
+            WHERE r.employee.admin.company.companyId =
+                  (SELECT adm.company.companyId FROM Admin adm WHERE adm.adminId = :adminId)
+            """)
+    List<WeeklyReport> findByEmployeeInCompanyOf(@Param("adminId") Long adminId);
 
-    List<WeeklyReport> findByEmployeeAdminAdminIdAndWeekStartDateBetween(
-            Long adminId,
-            LocalDate startDate,
-            LocalDate endDate);
+    @Query("""
+            SELECT r FROM WeeklyReport r
+            WHERE r.employee.admin.company.companyId =
+                  (SELECT adm.company.companyId FROM Admin adm WHERE adm.adminId = :adminId)
+              AND r.weekStartDate BETWEEN :startDate AND :endDate
+            """)
+    List<WeeklyReport> findByEmployeeInCompanyOfAndWeekStartDateBetween(
+            @Param("adminId") Long adminId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate);
 
     Optional<WeeklyReport> findByEmployeeEmployeeIdAndWeekStartDateAndWeekEndDate(
             Long employeeId,
@@ -56,4 +68,7 @@ public interface WeeklyReportRepository
 
     // Cascade cleanup when an administrator deletes an employee.
     long deleteByEmployeeEmployeeId(Long employeeId);
+
+    // Used before deleting a client: a client that reports point at is retired, not removed.
+    long countByClientClientId(Long clientId);
 }

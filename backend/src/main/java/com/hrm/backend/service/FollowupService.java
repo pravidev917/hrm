@@ -20,13 +20,16 @@ public class FollowupService {
 
     private final FollowupRepository followupRepository;
     private final EmployeeRepository employeeRepository;
+    private final CompanyScopeService companyScope;
 
     public FollowupService(
             FollowupRepository followupRepository,
-            EmployeeRepository employeeRepository) {
+            EmployeeRepository employeeRepository,
+            CompanyScopeService companyScope) {
 
         this.followupRepository = followupRepository;
         this.employeeRepository = employeeRepository;
+        this.companyScope = companyScope;
     }
 
     @Transactional(readOnly = true)
@@ -41,7 +44,7 @@ public class FollowupService {
     @Transactional(readOnly = true)
     public List<FollowupResponseDTO> getAdminFollowups(Long adminId) {
         return followupRepository
-                .findByEmployee_Admin_AdminIdOrderByFollowupIdDesc(adminId)
+                .findByEmployeeInCompanyOf(adminId)
                 .stream()
                 .map(FollowupResponseDTO::from)
                 .toList();
@@ -106,7 +109,7 @@ public class FollowupService {
             FollowupRequestDTO request) {
 
         Followup followup = followupRepository
-                .findByFollowupIdAndEmployee_Admin_AdminId(
+                .findByIdInCompanyOf(
                         followupId, adminId)
                 .orElseThrow(this::notFound);
 
@@ -130,7 +133,7 @@ public class FollowupService {
     @Transactional
     public void deleteForAdmin(Long followupId, Long adminId) {
         Followup followup = followupRepository
-                .findByFollowupIdAndEmployee_Admin_AdminId(
+                .findByIdInCompanyOf(
                         followupId, adminId)
                 .orElseThrow(this::notFound);
 
@@ -144,8 +147,8 @@ public class FollowupService {
     }
 
     private void verifyAdminOwnership(Employee employee, Long adminId) {
-        if (employee.getAdmin() == null ||
-                !adminId.equals(employee.getAdmin().getAdminId())) {
+        // Follow-ups are company data; another company's employee looks non-existent.
+        if (!companyScope.manages(adminId, employee)) {
 
             throw new ResponseStatusException(
                     HttpStatus.NOT_FOUND, "Employee not found");

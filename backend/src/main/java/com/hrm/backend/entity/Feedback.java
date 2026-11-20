@@ -90,6 +90,16 @@ public class Feedback {
     @Column(name = "interview_attended")
     private Boolean interviewAttended;
 
+    // ---- sourcing ----
+
+    /** Company-managed platform name; null for historical rows = Unknown. */
+    @Column(name = "sourcing_platform", length = 80)
+    private String sourcingPlatform;
+
+    /** The date the candidate was sourced; used for period reporting. */
+    @Column(name = "sourced_date")
+    private LocalDate sourcedDate;
+
     // ---- outcome ----
 
     /**

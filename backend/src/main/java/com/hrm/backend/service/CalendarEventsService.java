@@ -50,7 +50,7 @@ public class CalendarEventsService {
         LocalDate start = month.atDay(1);
         LocalDate end = month.atEndOfMonth();
 
-        List<Employee> employees = employeeRepository.findByAdminAdminId(adminId);
+        List<Employee> employees = employeeRepository.findByCompanyOf(adminId);
         List<CalendarEventDTO> events = new ArrayList<>();
 
         for (Employee employee : employees) {
@@ -59,7 +59,7 @@ public class CalendarEventsService {
         }
 
         for (Holiday holiday : holidayRepository
-                .findByAdminAdminIdAndHolidayDateBetweenOrderByHolidayDateAsc(adminId, start, end)) {
+                .findByCompanyOfAndHolidayDateBetween(adminId, start, end)) {
             events.add(new CalendarEventDTO(
                     "HOLIDAY",
                     holiday.getHolidayName(),
@@ -153,7 +153,7 @@ public class CalendarEventsService {
 
         Map<Long, long[]> totals = new LinkedHashMap<>(); // employeeId -> [resumes, sourced, reports]
 
-        for (DailyReport report : dailyReportRepository.findByEmployeeAdminAdminId(adminId)) {
+        for (DailyReport report : dailyReportRepository.findByEmployeeInCompanyOf(adminId)) {
             LocalDate date = report.getReportDate();
             if (date == null || date.isBefore(start) || date.isAfter(end)) continue;
 

@@ -2,6 +2,8 @@ package com.hrm.backend.dto;
 
 import com.hrm.backend.entity.Client;
 
+import java.math.BigDecimal;
+
 /**
  * Client representation returned to administrators.
  *
@@ -12,8 +14,18 @@ import com.hrm.backend.entity.Client;
  */
 public record ClientResponseDTO(
         Long clientId,
+        String clientCode,
+        String vendor,
+        String bdmName,
         String clientName,
+        String position,
+        String contactNumber,
         String hrName,
+        Integer numberOfPositions,
+        BigDecimal salaryOffered,
+        BigDecimal budgetPerCandidate,
+        BigDecimal percentagePerCandidate,
+        BigDecimal tax,
         String hrContactDetails,
         Integer profilesSubmitted,
         Integer interviewsConducted,
@@ -24,8 +36,18 @@ public record ClientResponseDTO(
     public static ClientResponseDTO from(Client client) {
         return new ClientResponseDTO(
                 client.getClientId(),
+                client.getClientCode(),
+                client.getVendor(),
+                client.getBdmName(),
                 client.getClientName(),
+                client.getPosition(),
+                client.getContactNumber(),
                 client.getHrName(),
+                client.getNumberOfPositions(),
+                client.getSalaryOffered(),
+                client.getBudgetPerCandidate(),
+                client.getPercentagePerCandidate(),
+                client.getTax(),
                 client.getHrContactDetails(),
                 client.getProfilesSubmitted(),
                 client.getInterviewsConducted(),

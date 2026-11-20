@@ -4,9 +4,11 @@ package com.hrm.backend.service;
 import com.hrm.backend.dto.WeeklyReportRequestDTO;
 import com.hrm.backend.dto.WeeklyReportResponseDTO;
 import com.hrm.backend.entity.Admin;
+import com.hrm.backend.entity.Client;
 import com.hrm.backend.entity.Employee;
 import com.hrm.backend.entity.WeeklyReport;
 import com.hrm.backend.repository.AdminRepository;
+import com.hrm.backend.repository.ClientRepository;
 import com.hrm.backend.repository.EmployeeRepository;
 import com.hrm.backend.repository.WeeklyReportRepository;
 
@@ -26,15 +28,18 @@ public class WeeklyReportService {
     private final WeeklyReportRepository repository;
     private final EmployeeRepository employeeRepository;
     private final AdminRepository adminRepository;
+    private final ClientRepository clientRepository;
 
     public WeeklyReportService(
             WeeklyReportRepository repository,
             EmployeeRepository employeeRepository,
-            AdminRepository adminRepository) {
+            AdminRepository adminRepository,
+            ClientRepository clientRepository) {
 
         this.repository = repository;
         this.employeeRepository = employeeRepository;
         this.adminRepository = adminRepository;
+        this.clientRepository = clientRepository;
     }
 
     private Employee getApprovedEmployee(Long employeeId) {
@@ -70,6 +75,8 @@ public class WeeklyReportService {
         dto.setWeeklyReportId(report.getWeeklyReportId());
         dto.setEmployeeId(report.getEmployee().getEmployeeId());
         dto.setEmployeeName(report.getEmployee().getEmployeeName());
+        dto.setClientId(report.getClient() == null ? null : report.getClient().getClientId());
+        dto.setClientName(report.getClient() == null ? null : report.getClient().getClientName());
         dto.setWeekNumber(report.getWeekNumber());
         dto.setWeekStartDate(report.getWeekStartDate());
         dto.setWeekEndDate(report.getWeekEndDate());
@@ -141,6 +148,32 @@ public class WeeklyReportService {
         report.setRevenueGenerated(request.getRevenueGenerated());
     }
 
+    /**
+     * Attaches the optional client to a weekly report.
+     *
+     * Only clients of the employee's own administrator are accepted, so a client
+     * id from another organisation can never be attached. A request without a
+     * clientId leaves the current client untouched (reports keep their client,
+     * including weeks filed before client selection existed).
+     */
+    private void applyClient(WeeklyReport report, WeeklyReportRequestDTO request) {
+
+        if (request.getClientId() == null) {
+            return;
+        }
+
+        Long adminId = report.getEmployee().getAdmin().getAdminId();
+
+        Client client = clientRepository.findById(request.getClientId())
+                .orElseThrow(() -> new RuntimeException("Client not found"));
+
+        if (client.getAdmin() == null || !adminId.equals(client.getAdmin().getAdminId())) {
+            throw new RuntimeException("Access denied: client does not belong to this organisation");
+        }
+
+        report.setClient(client);
+    }
+
     // EMPLOYEE: CREATE
 
     public WeeklyReportResponseDTO createReport(
@@ -170,6 +203,7 @@ public class WeeklyReportService {
         );
 
         applyValues(report, request);
+        applyClient(report, request);
 
         return toDTO(repository.save(report));
     }
@@ -247,6 +281,7 @@ public class WeeklyReportService {
         }
 
         applyValues(report, request);
+        applyClient(report, request);
 
         return toDTO(repository.save(report));
     }
@@ -272,7 +307,7 @@ public class WeeklyReportService {
 
         getActiveAdmin(adminId);
 
-        return repository.findByEmployeeAdminAdminId(adminId)
+        return repository.findByEmployeeInCompanyOf(adminId)
                 .stream()
                 .map(this::toDTO)
                 .toList();
@@ -346,6 +381,7 @@ public class WeeklyReportService {
         }
 
         applyValues(report, request);
+        applyClient(report, request);
 
         return toDTO(repository.save(report));
     }
@@ -399,7 +435,7 @@ public List<WeeklyReportResponseDTO> getAdminReportsByDateRange(
     validateDateRange(startDate, endDate);
 
     return repository
-            .findByEmployeeAdminAdminIdAndWeekStartDateBetween(
+            .findByEmployeeInCompanyOfAndWeekStartDateBetween(
                     adminId, startDate, endDate)
             .stream()
             .map(this::toDTO)

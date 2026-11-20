@@ -19,6 +19,10 @@ public class WeeklyReportResponseDTO {
 
     private String employeeName;
 
+    private Long clientId;
+
+    private String clientName;
+
     private Integer weekNumber;
 
     private LocalDate weekStartDate;

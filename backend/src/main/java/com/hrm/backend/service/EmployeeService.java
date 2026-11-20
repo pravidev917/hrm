@@ -12,8 +12,11 @@ import com.hrm.backend.repository.FeedbackRepository;
 import com.hrm.backend.repository.FollowupRepository;
 import com.hrm.backend.repository.LeaveManagementRepository;
 import com.hrm.backend.repository.MonthlyPerformanceRepository;
+import com.hrm.backend.repository.NoteRepository;
 import com.hrm.backend.repository.PerformanceRepository;
 import com.hrm.backend.repository.WeeklyReportRepository;
+import com.hrm.backend.repository.WfhRequestRepository;
+import com.hrm.backend.repository.EmployeeSalaryHistoryRepository;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -25,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -46,7 +50,12 @@ public class EmployeeService {
     private final FollowupRepository followupRepository;
     private final FeedbackRepository feedbackRepository;
     private final MonthlyPerformanceRepository monthlyPerformanceRepository;
+    private final NoteRepository noteRepository;
+    private final WfhRequestRepository wfhRepository;
+    private final EmployeeSalaryHistoryRepository salaryHistoryRepository;
+    private final SalaryHistoryService salaryHistoryService;
     private final PasswordEncoder passwordEncoder;
+    private final CompanyScopeService companyScope;
 
     public EmployeeService(
             EmployeeRepository repository,
@@ -59,7 +68,12 @@ public class EmployeeService {
             FollowupRepository followupRepository,
             FeedbackRepository feedbackRepository,
             MonthlyPerformanceRepository monthlyPerformanceRepository,
-            PasswordEncoder passwordEncoder) {
+            NoteRepository noteRepository,
+            WfhRequestRepository wfhRepository,
+            EmployeeSalaryHistoryRepository salaryHistoryRepository,
+            SalaryHistoryService salaryHistoryService,
+            PasswordEncoder passwordEncoder,
+            CompanyScopeService companyScope) {
 
         this.repository = repository;
         this.adminRepository = adminRepository;
@@ -71,7 +85,12 @@ public class EmployeeService {
         this.followupRepository = followupRepository;
         this.feedbackRepository = feedbackRepository;
         this.monthlyPerformanceRepository = monthlyPerformanceRepository;
+        this.noteRepository = noteRepository;
+        this.wfhRepository = wfhRepository;
+        this.salaryHistoryRepository = salaryHistoryRepository;
+        this.salaryHistoryService = salaryHistoryService;
         this.passwordEncoder = passwordEncoder;
+        this.companyScope = companyScope;
     }
 
     // Get all employees
@@ -81,7 +100,7 @@ public class EmployeeService {
 
     // Get employees belonging to a specific admin
     public List<Employee> getEmployeesByAdmin(Long adminId) {
-        return repository.findByAdminAdminId(adminId);
+        return repository.findByCompanyOf(adminId);
     }
 
     /**
@@ -109,7 +128,7 @@ public class EmployeeService {
                 Sort.by(dir, property)
         );
 
-        return repository.searchByAdmin(
+        return repository.searchInCompanyOf(
                 adminId,
                 normalizeLike(query),
                 normalizeStatus(status),
@@ -123,17 +142,18 @@ public class EmployeeService {
                 .orElseThrow(() -> new RuntimeException("Employee not found"));
     }
 
-    // Get employee and verify ownership
+    /**
+     * Loads an employee and checks that it belongs to the caller's company.
+     * Employees are shared inside a company, so a colleague's employee is
+     * manageable too; another company's employee is not.
+     */
     public Employee getEmployeeByIdForAdmin(Long employeeId, Long adminId) {
 
         Employee employee = getEmployeeById(employeeId);
 
-        if (employee.getAdmin() == null ||
-                employee.getAdmin().getAdminId() == null ||
-                !employee.getAdmin().getAdminId().equals(adminId)) {
-
+        if (!companyScope.manages(adminId, employee)) {
             throw new RuntimeException(
-                    "Access denied: Employee does not belong to this admin"
+                    "Access denied: Employee does not belong to this company"
             );
         }
 
@@ -142,7 +162,9 @@ public class EmployeeService {
 
     // Create employee
     public Employee createEmployee(Employee employee) {
-        return repository.save(employee);
+        Employee saved = repository.save(employee);
+        salaryHistoryService.recordSalary(saved, saved.getSalary(), true);
+        return saved;
     }
 
     /**
@@ -188,7 +210,9 @@ public class EmployeeService {
         employee.setPassword(passwordEncoder.encode(request.getPassword()));
         employee.setAccountStatus("APPROVED");
 
-        return repository.save(employee);
+        Employee saved = repository.save(employee);
+        salaryHistoryService.recordSalary(saved, saved.getSalary(), true);
+        return saved;
     }
 
     /**
@@ -203,6 +227,7 @@ public class EmployeeService {
             EmployeeUpdateRequest request) {
 
         Employee existing = getEmployeeByIdForAdmin(employeeId, adminId);
+        BigDecimal previousSalary = existing.getSalary();
 
         existing.setEmployeeName(request.getEmployeeName().trim());
         existing.setRole(request.getRole().trim());
@@ -257,7 +282,17 @@ public class EmployeeService {
         existing.setDateOfBirth(request.getDateOfBirth());
         existing.setJoiningDate(request.getJoiningDate());
 
-        return repository.save(existing);
+        Employee saved = repository.save(existing);
+
+        boolean changed = previousSalary == null
+                ? saved.getSalary() != null
+                : saved.getSalary() == null || previousSalary.compareTo(saved.getSalary()) != 0;
+
+        if (changed) {
+            salaryHistoryService.recordSalary(saved, saved.getSalary(), false);
+        }
+
+        return saved;
     }
 
     // Activate employee
@@ -309,6 +344,7 @@ public class EmployeeService {
         Employee employee = getEmployeeByIdForAdmin(employeeId, adminId);
 
         attendanceRepository.deleteByEmployeeEmployeeId(employeeId);
+        wfhRepository.deleteByEmployeeEmployeeId(employeeId);
         leaveRepository.deleteByEmployeeEmployeeId(employeeId);
         dailyReportRepository.deleteByEmployeeEmployeeId(employeeId);
         weeklyReportRepository.deleteByEmployeeEmployeeId(employeeId);
@@ -316,6 +352,8 @@ public class EmployeeService {
         followupRepository.deleteByEmployee_EmployeeId(employeeId);
         feedbackRepository.deleteByEmployee_EmployeeId(employeeId);
         monthlyPerformanceRepository.deleteByEmployeeId(employeeId);
+        noteRepository.deleteByEmployeeEmployeeId(employeeId);
+        salaryHistoryRepository.deleteByEmployeeEmployeeId(employeeId);
 
         repository.delete(employee);
     }

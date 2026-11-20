@@ -42,17 +42,20 @@ public class LeaveManagementService {
     private final EmployeeRepository employeeRepository;
     private final EmployeeService employeeService;
     private final AdminService adminService;
+    private final CompanyScopeService companyScope;
 
     public LeaveManagementService(
             LeaveManagementRepository repository,
             EmployeeRepository employeeRepository,
             EmployeeService employeeService,
-            AdminService adminService) {
+            AdminService adminService,
+            CompanyScopeService companyScope) {
 
         this.repository = repository;
         this.employeeRepository = employeeRepository;
         this.employeeService = employeeService;
         this.adminService = adminService;
+        this.companyScope = companyScope;
     }
 
     // =========================================================
@@ -222,7 +225,7 @@ public class LeaveManagementService {
         getActiveAdmin(adminId);
 
         return repository
-                .findByEmployeeAdminAdminIdOrderByStartDateDesc(adminId);
+                .findByEmployeeInCompanyOfOrderByStartDateDesc(adminId);
     }
 
     // =========================================================
@@ -408,7 +411,7 @@ public class LeaveManagementService {
 
     private Admin getActiveAdmin(Long adminId) {
 
-        Admin admin = adminService.getAdminById(adminId);
+        Admin admin = adminService.getAdminRecord(adminId);
 
         if (!"ACTIVE".equalsIgnoreCase(admin.getStatus())) {
 
@@ -469,15 +472,13 @@ public class LeaveManagementService {
             LeaveManagement leave,
             Long adminId) {
 
+        // Leave requests are company data: every administrator of the company can
+        // review them, and nobody outside it can.
         if (leave.getEmployee() == null ||
-                leave.getEmployee().getAdmin() == null ||
-                !leave.getEmployee()
-                        .getAdmin()
-                        .getAdminId()
-                        .equals(adminId)) {
+                !companyScope.manages(adminId, leave.getEmployee())) {
 
             throw new IllegalStateException(
-                    "Access denied: Leave request does not belong to your employees"
+                    "Access denied: Leave request does not belong to your company"
             );
         }
     }

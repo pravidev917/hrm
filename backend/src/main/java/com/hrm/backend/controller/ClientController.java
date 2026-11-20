@@ -35,7 +35,7 @@ public class ClientController {
             @RequestBody Client client,
             Authentication authentication) {
 
-        Admin admin = adminService.getAdminById(
+        Admin admin = adminService.getAdminRecord(
                 adminService.getAdminIdByEmail(authentication.getName())
         );
 
@@ -123,6 +123,21 @@ public class ClientController {
                 ClientResponseDTO.from(clientService.deactivateClient(clientId, adminId))
         );
     }
+    // Delete client (only when no report refers to it — otherwise deactivate)
+    @DeleteMapping("/{clientId}")
+    public ResponseEntity<Void> deleteClient(
+            @PathVariable Long clientId,
+            Authentication authentication) {
+
+        Long adminId = adminService.getAdminIdByEmail(
+                authentication.getName()
+        );
+
+        clientService.deleteClient(clientId, adminId);
+
+        return ResponseEntity.noContent().build();
+    }
+
     // Search clients by name
 @GetMapping("/search")
 public ResponseEntity<List<ClientResponseDTO>> searchClients(

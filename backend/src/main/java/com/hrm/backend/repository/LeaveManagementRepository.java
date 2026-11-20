@@ -2,6 +2,7 @@ package com.hrm.backend.repository;
 
 import com.hrm.backend.entity.LeaveManagement;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -26,8 +27,15 @@ public interface LeaveManagementRepository
     // ADMIN LEAVE HISTORY
     // --------------------------------------------------
 
-    List<LeaveManagement>
-    findByEmployeeAdminAdminIdOrderByStartDateDesc(Long adminId);
+    /** Leave requests of the administrator's whole company (shared records). */
+    @Query("""
+            SELECT l FROM LeaveManagement l
+            WHERE l.employee.admin.company.companyId =
+                  (SELECT adm.company.companyId FROM Admin adm WHERE adm.adminId = :adminId)
+            ORDER BY l.startDate DESC
+            """)
+    List<LeaveManagement> findByEmployeeInCompanyOfOrderByStartDateDesc(
+            @Param("adminId") Long adminId);
 
     // --------------------------------------------------
     // STATUS
@@ -66,11 +74,18 @@ public interface LeaveManagementRepository
     // ADMIN DATE RANGE
     // --------------------------------------------------
 
+    @Query("""
+            SELECT l FROM LeaveManagement l
+            WHERE l.employee.admin.company.companyId =
+                  (SELECT adm.company.companyId FROM Admin adm WHERE adm.adminId = :adminId)
+              AND l.startDate <= :endDate
+              AND l.endDate >= :startDate
+            """)
     List<LeaveManagement>
-    findByEmployeeAdminAdminIdAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
-            Long adminId,
-            LocalDate endDate,
-            LocalDate startDate);
+    findByEmployeeInCompanyOfAndStartDateLessThanEqualAndEndDateGreaterThanEqual(
+            @Param("adminId") Long adminId,
+            @Param("endDate") LocalDate endDate,
+            @Param("startDate") LocalDate startDate);
 
     // --------------------------------------------------
     // EMPLOYEE DASHBOARD: APPROVED LEAVE DAYS
@@ -94,25 +109,56 @@ public interface LeaveManagementRepository
     // ADMIN DASHBOARD (scoped to one admin's employees)
     // --------------------------------------------------
 
-    long countByEmployeeAdminAdminIdAndStatus(Long adminId, String status);
+    @Query("""
+            SELECT COUNT(l) FROM LeaveManagement l
+            WHERE l.employee.admin.company.companyId =
+                  (SELECT adm.company.companyId FROM Admin adm WHERE adm.adminId = :adminId)
+              AND l.status = :status
+            """)
+    long countByEmployeeInCompanyOfAndStatus(
+            @Param("adminId") Long adminId, @Param("status") String status);
 
-    long countByEmployeeAdminAdminIdAndStartDateGreaterThanEqual(
-            Long adminId, LocalDate fromDate);
+    @Query("""
+            SELECT COUNT(l) FROM LeaveManagement l
+            WHERE l.employee.admin.company.companyId =
+                  (SELECT adm.company.companyId FROM Admin adm WHERE adm.adminId = :adminId)
+            """)
+    long countByEmployeeInCompanyOf(@Param("adminId") Long adminId);
+
+    /** Leave requests this administrator approved or rejected (audit trail). */
+    long countByApprovedByAdminId(Long adminId);
+
+    @Query("""
+            SELECT COUNT(l) FROM LeaveManagement l
+            WHERE l.employee.admin.company.companyId =
+                  (SELECT adm.company.companyId FROM Admin adm WHERE adm.adminId = :adminId)
+              AND l.startDate >= :fromDate
+            """)
+    long countByEmployeeInCompanyOfAndStartDateGreaterThanEqual(
+            @Param("adminId") Long adminId, @Param("fromDate") LocalDate fromDate);
 
     @Query("""
             SELECT COALESCE(SUM(l.numberOfDays), 0)
             FROM LeaveManagement l
-            WHERE l.employee.admin.adminId = :adminId
+            WHERE l.employee.admin.company.companyId =
+                  (SELECT adm.company.companyId FROM Admin adm WHERE adm.adminId = :adminId)
               AND l.status = 'APPROVED'
               AND l.startDate >= :fromDate
             """)
-    BigDecimal sumApprovedDaysByAdminSince(
+    BigDecimal sumApprovedDaysInCompanyOf(
             @Param("adminId") Long adminId,
             @Param("fromDate") LocalDate fromDate);
 
-    /** Next pending requests for the admin's review queue, oldest first. */
-    List<LeaveManagement> findTop5ByEmployeeAdminAdminIdAndStatusOrderByStartDateAsc(
-            Long adminId, String status);
+    /** Next pending requests of the company's review queue, oldest first. */
+    @Query("""
+            SELECT l FROM LeaveManagement l
+            WHERE l.employee.admin.company.companyId =
+                  (SELECT adm.company.companyId FROM Admin adm WHERE adm.adminId = :adminId)
+              AND l.status = :status
+            ORDER BY l.startDate ASC
+            """)
+    List<LeaveManagement> findTop5PendingInCompanyOf(
+            @Param("adminId") Long adminId, @Param("status") String status, Pageable pageable);
 
     // --------------------------------------------------
     // LOCK LEAVE FOR ADMIN REVIEW

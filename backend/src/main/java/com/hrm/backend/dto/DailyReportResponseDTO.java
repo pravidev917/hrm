@@ -2,6 +2,7 @@
 package com.hrm.backend.dto;
 
 import java.time.LocalDate;
+import java.util.List;
 
 public class DailyReportResponseDTO {
 
@@ -16,6 +17,8 @@ public class DailyReportResponseDTO {
     private Integer connectedCount;
     private LocalDate reportDate;
     private String remarks;
+    private String sourcingPlatform;
+    private List<PlatformCountDTO> platformCounts;
 
     public DailyReportResponseDTO() {
     }
@@ -31,7 +34,9 @@ public class DailyReportResponseDTO {
             Integer candidatesContacted,
             Integer connectedCount,
             LocalDate reportDate,
-            String remarks) {
+            String remarks,
+            String sourcingPlatform,
+            List<PlatformCountDTO> platformCounts) {
 
         this.dailyReportId = dailyReportId;
         this.employeeId = employeeId;
@@ -44,6 +49,8 @@ public class DailyReportResponseDTO {
         this.connectedCount = connectedCount;
         this.reportDate = reportDate;
         this.remarks = remarks;
+        this.sourcingPlatform = sourcingPlatform;
+        this.platformCounts = platformCounts;
     }
 
     public Long getDailyReportId() {
@@ -88,5 +95,13 @@ public class DailyReportResponseDTO {
 
     public String getRemarks() {
         return remarks;
+    }
+
+    public String getSourcingPlatform() {
+        return sourcingPlatform;
+    }
+
+    public List<PlatformCountDTO> getPlatformCounts() {
+        return platformCounts;
     }
 }

@@ -20,13 +20,19 @@ public class FeedbackService {
 
     private final FeedbackRepository feedbackRepository;
     private final EmployeeRepository employeeRepository;
+    private final CompanyScopeService companyScope;
+    private final CompanyTimeService companyTime;
 
     public FeedbackService(
             FeedbackRepository feedbackRepository,
-            EmployeeRepository employeeRepository) {
+            EmployeeRepository employeeRepository,
+            CompanyScopeService companyScope,
+            CompanyTimeService companyTime) {
 
         this.feedbackRepository = feedbackRepository;
         this.employeeRepository = employeeRepository;
+        this.companyScope = companyScope;
+        this.companyTime = companyTime;
     }
 
     // EMPLOYEE: VIEW OWN FEEDBACK
@@ -45,7 +51,7 @@ public class FeedbackService {
     public List<FeedbackResponseDTO> getAdminFeedback(Long adminId) {
 
         return feedbackRepository
-                .findByEmployee_Admin_AdminIdOrderByFeedbackIdDesc(adminId)
+                .findByEmployeeInCompanyOf(adminId)
                 .stream()
                 .map(FeedbackResponseDTO::from)
                 .toList();
@@ -63,6 +69,9 @@ public class FeedbackService {
         feedback.setEmployee(employee);
 
         applyRequest(feedback, request);
+        if (feedback.getSourcedDate() == null) {
+            feedback.setSourcedDate(companyTime.todayForEmployee(employee));
+        }
 
         return FeedbackResponseDTO.from(
                 feedbackRepository.save(feedback)
@@ -84,6 +93,9 @@ public class FeedbackService {
         feedback.setEmployee(employee);
 
         applyRequest(feedback, request);
+        if (feedback.getSourcedDate() == null) {
+            feedback.setSourcedDate(companyTime.todayForEmployee(employee));
+        }
 
         return FeedbackResponseDTO.from(
                 feedbackRepository.save(feedback)
@@ -119,7 +131,7 @@ public class FeedbackService {
             FeedbackRequestDTO request) {
 
         Feedback feedback = feedbackRepository
-                .findByFeedbackIdAndEmployee_Admin_AdminId(
+                .findByIdInCompanyOf(
                         feedbackId,
                         adminId
                 )
@@ -155,7 +167,7 @@ public class FeedbackService {
             Long adminId) {
 
         Feedback feedback = feedbackRepository
-                .findByFeedbackIdAndEmployee_Admin_AdminId(
+                .findByIdInCompanyOf(
                         feedbackId,
                         adminId
                 )
@@ -179,8 +191,8 @@ public class FeedbackService {
             Employee employee,
             Long adminId) {
 
-        if (employee.getAdmin() == null ||
-                !adminId.equals(employee.getAdmin().getAdminId())) {
+        // Feedback is company data; another company's employee looks non-existent.
+        if (!companyScope.manages(adminId, employee)) {
 
             throw new ResponseStatusException(
                     HttpStatus.NOT_FOUND,
@@ -245,6 +257,8 @@ public class FeedbackService {
         feedback.setHrName(overwrite(request.getHrName(), feedback.getHrName()));
         feedback.setClientName(overwrite(clientName, feedback.getClientName()));
         feedback.setComments(overwrite(request.getComments(), feedback.getComments()));
+        feedback.setSourcingPlatform(overwrite(request.getSourcingPlatform(), feedback.getSourcingPlatform()));
+        if (request.getSourcedDate() != null) feedback.setSourcedDate(request.getSourcedDate());
 
         if (request.getCurrentCtc() != null) feedback.setCurrentCtc(request.getCurrentCtc());
         if (request.getExpectedCtc() != null) feedback.setExpectedCtc(request.getExpectedCtc());

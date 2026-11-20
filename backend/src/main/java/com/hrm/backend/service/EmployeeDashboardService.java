@@ -24,18 +24,21 @@ public class EmployeeDashboardService {
     private final LeaveManagementRepository leaveRepository;
     private final DailyReportRepository dailyReportRepository;
     private final WeeklyReportRepository weeklyReportRepository;
+    private final CompanyTimeService companyTime;
 
     public EmployeeDashboardService(
             EmployeeRepository employeeRepository,
             AttendanceRepository attendanceRepository,
             LeaveManagementRepository leaveRepository,
             DailyReportRepository dailyReportRepository,
-            WeeklyReportRepository weeklyReportRepository) {
+            WeeklyReportRepository weeklyReportRepository,
+            CompanyTimeService companyTime) {
         this.employeeRepository = employeeRepository;
         this.attendanceRepository = attendanceRepository;
         this.leaveRepository = leaveRepository;
         this.dailyReportRepository = dailyReportRepository;
         this.weeklyReportRepository = weeklyReportRepository;
+        this.companyTime = companyTime;
     }
 
     @Transactional(readOnly = true)
@@ -48,7 +51,7 @@ public class EmployeeDashboardService {
     public DashboardDTO getOwnDashboard(String authenticatedEmail) {
         Employee employee = getApprovedEmployee(authenticatedEmail);
         Long employeeId = employee.getEmployeeId();
-        LocalDate today = LocalDate.now();
+        LocalDate today = companyTime.todayForEmployee(employee);
         LocalDate monthStart = today.withDayOfMonth(1);
 
         String todayStatus = attendanceRepository

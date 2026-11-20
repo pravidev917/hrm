@@ -1,7 +1,9 @@
 package com.hrm.backend.config;
 
 import com.hrm.backend.entity.Admin;
+import com.hrm.backend.entity.Company;
 import com.hrm.backend.repository.AdminRepository;
+import com.hrm.backend.repository.CompanyRepository;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +35,7 @@ public class DefaultAdminInitializer implements ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(DefaultAdminInitializer.class);
 
     private final AdminRepository adminRepository;
+    private final CompanyRepository companyRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Value("${DEFAULT_ADMIN_EMAIL:}")
@@ -44,8 +47,12 @@ public class DefaultAdminInitializer implements ApplicationRunner {
     @Value("${DEFAULT_ADMIN_NAME:Administrator}")
     private String defaultName;
 
-    public DefaultAdminInitializer(AdminRepository adminRepository, PasswordEncoder passwordEncoder) {
+    public DefaultAdminInitializer(
+            AdminRepository adminRepository,
+            CompanyRepository companyRepository,
+            PasswordEncoder passwordEncoder) {
         this.adminRepository = adminRepository;
+        this.companyRepository = companyRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
@@ -71,12 +78,22 @@ public class DefaultAdminInitializer implements ApplicationRunner {
             return;
         }
 
+        // A fresh distribution database has the company created by V3 but no
+        // administrator yet. Never insert an admin without its tenant.
+        Company company = companyRepository.findFirstByOrderByCompanyIdAsc()
+                .orElseGet(() -> {
+                    Company created = new Company();
+                    created.setCompanyName("Default Company");
+                    return companyRepository.save(created);
+                });
+
         Admin admin = new Admin();
         admin.setAdminName(defaultName);
         admin.setEmail(defaultEmail.trim().toLowerCase(Locale.ROOT));
         admin.setPassword(passwordEncoder.encode(defaultPassword));
         admin.setRoleAccessLevel("ADMIN");
         admin.setStatus("ACTIVE");
+        admin.setCompany(company);
 
         adminRepository.save(admin);
 

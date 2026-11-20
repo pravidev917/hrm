@@ -23,13 +23,16 @@ public class PerformanceService {
 
     private final PerformanceRepository performanceRepository;
     private final EmployeeRepository employeeRepository;
+    private final CompanyScopeService companyScope;
 
     public PerformanceService(
             PerformanceRepository performanceRepository,
-            EmployeeRepository employeeRepository) {
+            EmployeeRepository employeeRepository,
+            CompanyScopeService companyScope) {
 
         this.performanceRepository = performanceRepository;
         this.employeeRepository = employeeRepository;
+        this.companyScope = companyScope;
     }
 
     // EMPLOYEE: Get own performance records
@@ -50,7 +53,7 @@ public class PerformanceService {
             Long adminId) {
 
         return performanceRepository
-                .findByEmployee_Admin_AdminIdOrderByPerformanceIdDesc(adminId)
+                .findByEmployeeInCompanyOf(adminId)
                 .stream()
                 .map(PerformanceResponseDTO::from)
                 .toList();
@@ -123,7 +126,7 @@ public class PerformanceService {
             PerformanceRequestDTO request) {
 
         Performance performance = performanceRepository
-                .findByPerformanceIdAndEmployee_Admin_AdminId(
+                .findByIdInCompanyOf(
                         performanceId,
                         adminId
                 )
@@ -159,7 +162,7 @@ public class PerformanceService {
             Long adminId) {
 
         Performance performance = performanceRepository
-                .findByPerformanceIdAndEmployee_Admin_AdminId(
+                .findByIdInCompanyOf(
                         performanceId,
                         adminId
                 )
@@ -180,11 +183,10 @@ public class PerformanceService {
             Employee employee,
             Long adminId) {
 
-        if (employee.getAdmin() == null ||
-                employee.getAdmin().getAdminId() == null ||
-                !adminId.equals(employee.getAdmin().getAdminId())) {
+        // Performance records are company data; an employee of another company
+        // must still look non-existent.
+        if (!companyScope.manages(adminId, employee)) {
 
-            // Do not reveal employees belonging to another admin.
             throw new ResponseStatusException(
                     HttpStatus.NOT_FOUND,
                     "Employee not found"
