@@ -8,6 +8,7 @@ import Icon from './Icon'
  *   approved-leave  (red)    — an APPROVED leave request covers the date
  *   present         (green)  — the employee marked PRESENT
  *   absent          (slate)  — the employee marked ABSENT
+ *   approved-wfh    (blue)   — an APPROVED WFH request covers the date
  *   not-marked      (orange) — a working day in the past with no record
  *   weekend/future  (neutral) — nothing expected
  */
@@ -54,6 +55,7 @@ function expandLeaveDates(leaves) {
 export default function AttendanceCalendar({
   records = [],
   leaveRecords = [],
+  wfhRecords = [],
   holidayDateMap = new Map(),
   today,
   onSelectDate,
@@ -70,6 +72,7 @@ export default function AttendanceCalendar({
   }, [records])
 
   const leaveDates = useMemo(() => expandLeaveDates(leaveRecords), [leaveRecords])
+  const wfhDates = useMemo(() => expandLeaveDates(wfhRecords), [wfhRecords])
 
   const weeks = useMemo(() => buildWeeks(cursor.year, cursor.month), [cursor])
 
@@ -79,6 +82,7 @@ export default function AttendanceCalendar({
     let present = 0
     let absent = 0
     let leave = 0
+    let wfh = 0
     let missing = 0
     for (const r of records) {
       if (!r.attendanceDate?.startsWith(monthKey)) continue
@@ -86,6 +90,7 @@ export default function AttendanceCalendar({
       else if (r.status === 'ABSENT') absent += 1
     }
     for (const iso of leaveDates) if (iso.startsWith(monthKey)) leave += 1
+    for (const iso of wfhDates) if (iso.startsWith(monthKey)) wfh += 1
     const dim = new Date(cursor.year, cursor.month + 1, 0).getDate()
     for (let day = 1; day <= dim; day += 1) {
       const d = new Date(cursor.year, cursor.month, day)
@@ -95,8 +100,8 @@ export default function AttendanceCalendar({
       if (dow === 0 || dow === 6) continue
       if (!byDate.has(iso) && !leaveDates.has(iso)) missing += 1
     }
-    return { present, absent, leave, missing }
-  }, [records, leaveDates, byDate, monthKey, today, cursor])
+    return { present, absent, leave, wfh, missing }
+  }, [records, leaveDates, wfhDates, byDate, monthKey, today, cursor])
 
   function stateOf(date) {
     const iso = toISO(date)
@@ -104,6 +109,7 @@ export default function AttendanceCalendar({
     const rec = byDate.get(iso)
     if (rec?.status === 'PRESENT') return 'present'
     if (rec?.status === 'ABSENT') return 'absent'
+    if (wfhDates.has(iso)) return 'wfh'
     const dow = date.getDay()
     if (iso < today && dow !== 0 && dow !== 6) return 'missing'
     return 'none'
@@ -140,6 +146,7 @@ export default function AttendanceCalendar({
 
   const selectedRec = selected ? byDate.get(selected) : null
   const selectedIsLeave = selected ? leaveDates.has(selected) : false
+  const selectedIsWfh = selected ? wfhDates.has(selected) : false
   const selectedHoliday = selected ? holidayDateMap.get(selected) : null
 
   return (
@@ -148,7 +155,7 @@ export default function AttendanceCalendar({
         <div>
           <h2 className="cal-title">{label}</h2>
           <p className="muted small">
-            {summary.present} present · {summary.leave} on leave · {summary.missing} unmarked
+            {summary.present} present · {summary.leave} on leave · {summary.wfh} WFH · {summary.missing} unmarked
           </p>
         </div>
         <div className="cal-nav">
@@ -206,6 +213,9 @@ export default function AttendanceCalendar({
           <span className="cal-swatch cal-swatch--absent" /> Marked absent
         </li>
         <li>
+          <span className="cal-swatch cal-swatch--wfh" /> Approved WFH
+        </li>
+        <li>
           <span className="cal-swatch cal-swatch--missing" /> Not marked
         </li>
       </ul>
@@ -219,10 +229,18 @@ export default function AttendanceCalendar({
               : selectedIsLeave
               ? 'Approved leave on this day.'
               : selectedRec
-                ? `Marked ${selectedRec.status.toLowerCase()}.`
-                : selected < today
-                  ? 'No attendance was recorded for this working day.'
-                  : 'Nothing recorded — this day is not over yet.'}
+                ? selectedRec.status === 'PRESENT'
+                  ? selectedRec.workMode === 'WFH'
+                    ? 'Marked present — WFH.'
+                    : selectedRec.workMode === 'OFFICE'
+                      ? 'Marked present — office.'
+                      : 'Marked present.'
+                  : `Marked ${selectedRec.status.toLowerCase()}.`
+                : selectedIsWfh
+                  ? 'Approved work from home on this day — attendance still has to be marked.'
+                  : selected < today
+                    ? 'No attendance was recorded for this working day.'
+                    : 'Nothing recorded — this day is not over yet.'}
           </span>
         </div>
       )}
@@ -234,6 +252,7 @@ const STATE_LABEL = {
   present: 'marked present',
   leave: 'approved leave',
   absent: 'marked absent',
+  wfh: 'approved work from home',
   missing: 'not marked',
   none: 'no entry',
 }

@@ -28,11 +28,3 @@ export const followupApi = {
   employee: makeEmployeeApi('/api/employee/followups'),
   admin: makeAdminApi('/api/admin/followups'),
 }
-export const performanceApi = {
-  employee: makeEmployeeApi('/api/employee/performance'),
-  admin: makeAdminApi('/api/admin/performance'),
-  // Team leaderboard, ranked within each job designation.
-  // period: 'YYYY-MM' or 'all'. Both roles are allowed; the backend scopes the
-  // result to the caller's admin, so the URL is the same for everyone.
-  leaderboard: (period) => unwrap(apiClient.get('/api/performance/leaderboard', { params: { period } })),
-}

@@ -13,13 +13,19 @@ export const adminEmployeeApi = {
 
 export const administratorApi = {
   list: () => unwrap(apiClient.get('/api/admin/admins')),
+  get: (id) => unwrap(apiClient.get(`/api/admin/admins/${id}`)),
   create: (body) => unwrap(apiClient.post('/api/admin/admins', body)),
+  update: (id, body) => unwrap(apiClient.put(`/api/admin/admins/${id}`, body)),
+  remove: (id) => unwrap(apiClient.delete(`/api/admin/admins/${id}`)),
+  activate: (id) => unwrap(apiClient.patch(`/api/admin/admins/${id}/activate`)),
+  deactivate: (id) => unwrap(apiClient.patch(`/api/admin/admins/${id}/deactivate`)),
 }
 
 export const clientApi = {
   list: () => unwrap(apiClient.get('/api/admin/clients')),
   create: (body) => unwrap(apiClient.post('/api/admin/clients', body)),
   update: (id, body) => unwrap(apiClient.put(`/api/admin/clients/${id}`, body)),
+  remove: (id) => unwrap(apiClient.delete(`/api/admin/clients/${id}`)),
   activate: (id) => unwrap(apiClient.patch(`/api/admin/clients/${id}/activate`)),
   deactivate: (id) => unwrap(apiClient.patch(`/api/admin/clients/${id}/deactivate`)),
 }

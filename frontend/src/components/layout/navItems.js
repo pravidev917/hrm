@@ -19,6 +19,8 @@ export const ADMIN_NAV = [
     items: [
       { to: '/attendance', label: 'Attendance', icon: 'clock' },
       { to: '/leaves', label: 'Leave requests', icon: 'calendar', badgeKey: 'pendingLeaves' },
+      { to: '/wfh', label: 'WFH requests', icon: 'home', badgeKey: 'pendingWfh' },
+      { to: '/office-settings', label: 'Office settings', icon: 'pin' },
     ],
   },
   {
@@ -31,8 +33,8 @@ export const ADMIN_NAV = [
   {
     section: 'Development',
     items: [
-      { to: '/performance', label: 'Performance', icon: 'chart' },
-      { to: '/feedback', label: 'Feedback', icon: 'message' },
+      { to: '/performance-tracker', label: 'Performance', icon: 'chart' },
+      { to: '/candidate-tracking', label: 'Candidate tracking', icon: 'message' },
     ],
   },
 ]
@@ -44,6 +46,7 @@ export const EMPLOYEE_NAV = [
     items: [
       { to: '/attendance', label: 'Attendance', icon: 'clock' },
       { to: '/leaves', label: 'My leave', icon: 'calendar', badgeKey: 'pendingLeaves' },
+      { to: '/wfh', label: 'Work from home', icon: 'home', badgeKey: 'pendingWfh' },
       { to: '/reports', label: 'Daily reports', icon: 'file' },
       { to: '/weekly-reports', label: 'Weekly reports', icon: 'chart' },
     ],
@@ -52,7 +55,7 @@ export const EMPLOYEE_NAV = [
     section: 'Development',
     items: [
       { to: '/performance', label: 'Performance', icon: 'chart' },
-      { to: '/feedback', label: 'Feedback', icon: 'message' },
+      { to: '/candidate-tracking', label: 'Candidate tracking', icon: 'message' },
       { to: '/followups', label: 'Follow-ups', icon: 'phone' },
     ],
   },

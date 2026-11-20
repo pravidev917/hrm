@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { adminEmployeeApi } from '../api/adminApi'
 import { usePagedFetch } from '../hooks/useFetch'
+import { useAuth } from '../hooks/useAuth'
 import { useToast } from '../hooks/useToast'
 import PageHeader from '../components/common/PageHeader'
 import StatusBadge from '../components/common/StatusBadge'
@@ -8,7 +9,7 @@ import PagedTable from '../components/common/PagedTable'
 import ConfirmDialog from '../components/common/ConfirmDialog'
 import Modal from '../components/common/Modal'
 import EmployeeFormModal from '../components/employees/EmployeeFormModal'
-import { EmptyState, ErrorState } from '../components/common/Feedback'
+import { ErrorState } from '../components/common/Feedback'
 import { FilterSelect, SearchInput, Toolbar } from '../components/common/Toolbar'
 import Icon from '../components/common/Icon'
 import { formatDateTime, formatMoney, titleCase } from '../utils/format'
@@ -38,6 +39,7 @@ function accountActions(status) {
 
 export default function EmployeesPage() {
   const toast = useToast()
+  const { user } = useAuth()
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('')
   const [forming, setForming] = useState(null) // { mode: 'create' } | { mode: 'edit', employee }
@@ -51,6 +53,28 @@ export default function EmployeesPage() {
 
   const rows = list.data?.content ?? []
   const hasFilters = Boolean(query.trim() || status)
+  const total = list.totalElements ?? 0
+  // Employees are scoped to the administrator who created them. An empty page can
+  // therefore mean "none here", "none matching", or "you are on an empty page".
+  const pageIsEmpty = !hasFilters && total > 0 && rows.length === 0
+
+  const emptyTitle = hasFilters
+    ? 'No employees match your filters'
+    : pageIsEmpty
+      ? 'This page is empty'
+      : 'No employees in your company yet'
+
+  const emptyHint = hasFilters
+    ? 'Search covers name, email, employee ID, department, designation and phone. Try a different term or status.'
+    : pageIsEmpty
+      ? `${total} employee${total === 1 ? '' : 's'} exist${total === 1 ? 's' : ''} in your company. Go back to the first page to see them.`
+      : `Employees are shared by every administrator of your company, so anything a colleague adds appears here too. You are signed in as ${user?.email ?? 'this account'}. Use “Add employee” to create the first one.`
+
+  const emptyAction = pageIsEmpty ? (
+    <button type="button" className="btn btn-primary" onClick={() => list.setPage(0)}>
+      Go to first page
+    </button>
+  ) : undefined
 
   const columns = [
     {
@@ -175,8 +199,9 @@ export default function EmployeesPage() {
             totalPages={list.totalPages}
             totalElements={list.totalElements}
             onPageChange={list.setPage}
-            emptyTitle={hasFilters ? 'No employees match your filters' : 'No employees yet'}
-            emptyHint={hasFilters ? 'Try a different search term or status.' : 'Use “Add employee” to create the first account.'}
+            emptyTitle={emptyTitle}
+            emptyHint={emptyHint}
+            emptyAction={emptyAction}
           />
         )}
       </section>
@@ -260,6 +285,13 @@ export default function EmployeesPage() {
           onSaved={(_saved, verb) => {
             toast.success(verb === 'created' ? 'Employee created — they can sign in now' : 'Employee updated')
             setViewing(null)
+            if (verb === 'created') {
+              // A new row is the newest record, so it lands on page 1. Clear any
+              // filters that would hide it and make sure the list goes back there.
+              setQuery('')
+              setStatus('')
+              list.setPage(0)
+            }
             list.reload()
           }}
         />
@@ -280,13 +312,6 @@ export default function EmployeesPage() {
         />
       )}
 
-      {!list.loading && !list.error && rows.length === 0 && !hasFilters && (
-        <EmptyState
-          icon="users"
-          title="Build your team"
-          hint="Add the first employee — you set their employee ID, email, phone, department, role, salary and password."
-        />
-      )}
     </>
   )
 }

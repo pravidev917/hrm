@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { adminDailyReportApi, employeeDailyReportApi } from '../api/reportApi'
+import { sourcingPlatformApi } from '../api/reportingApi'
 import { employeePortalApi } from '../api/employeeApi'
 import { useAuth } from '../hooks/useAuth'
 import { useFetch } from '../hooks/useFetch'
@@ -15,13 +16,21 @@ import { formatDate, formatNumber, matchesQuery, todayISO } from '../utils/forma
 
 const NUMBER = { type: 'number', min: 0, step: 1, half: true, required: true }
 
-function validateReport(v) {
+function validateReport(v, platforms = []) {
   const errors = {}
   if (!v.clientId) errors.clientId = 'Choose a client'
   if (Number(v.connectedCount) > Number(v.candidatesContacted))
     errors.connectedCount = 'Connected cannot exceed candidates contacted'
   if (Number(v.profilesSubmitted) > Number(v.candidatesSourced))
     errors.profilesSubmitted = 'Profiles submitted cannot exceed candidates sourced'
+
+  const platformTotal = platforms.reduce((sum, name) => sum + (Number(v[`platform:${name}`]) || 0), 0)
+  if (platformTotal !== Number(v.candidatesSourced)) {
+    const key = `platform:${platforms[0] ?? ''}`
+    errors[key] = `Platform counts add up to ${platformTotal}, but candidates sourced is ${Number(
+      v.candidatesSourced,
+    )}. They must match so the same profile is not counted twice.`
+  }
   return errors
 }
 
@@ -37,6 +46,14 @@ export default function DailyReportsPage() {
   const [removing, setRemoving] = useState(null)
 
   // Employee client options come from the backend (scoped to the employee's admin).
+  const [platforms, setPlatforms] = useState([])
+  useEffect(() => {
+    const request = isAdmin ? sourcingPlatformApi.admin() : sourcingPlatformApi.employee()
+    request
+      .then((rows) => setPlatforms(rows.filter((p) => p.active).map((p) => p.name)))
+      .catch(() => setPlatforms(['LinkedIn', 'Naukri', 'Indeed', 'Referral', 'Company Website', 'Other']))
+  }, [isAdmin])
+
   const [clients, setClients] = useState({ data: [], error: null, loading: !isAdmin })
   const loadClients = useCallback(() => {
     if (isAdmin) return
@@ -81,6 +98,15 @@ export default function DailyReportsPage() {
     [rows],
   )
 
+  const platformFields = platforms.map((name) => ({
+    name: `platform:${name}`,
+    label: `${name} profiles`,
+    type: 'number',
+    min: 0,
+    step: 1,
+    half: true,
+  }))
+
   const fields = [
     { name: 'reportDate', label: 'Report date', type: 'date', max: todayISO(), required: true, half: true },
     {
@@ -97,6 +123,7 @@ export default function DailyReportsPage() {
     { name: 'candidatesSourced', label: 'Candidates sourced', ...NUMBER },
     { name: 'candidatesContacted', label: 'Candidates contacted', ...NUMBER },
     { name: 'connectedCount', label: 'Connected', ...NUMBER },
+    ...platformFields,
     { name: 'remarks', label: 'Remarks', type: 'textarea' },
   ]
 
@@ -104,6 +131,14 @@ export default function DailyReportsPage() {
     { key: 'reportDate', label: 'Date', sortable: true, render: (r) => formatDate(r.reportDate) },
     ...(isAdmin ? [{ key: 'employeeName', label: 'Employee', sortable: true, render: (r) => <strong>{r.employeeName}</strong> }] : []),
     { key: 'clientName', label: 'Client', sortable: true },
+    {
+      key: 'sourcingPlatform',
+      label: 'Platform',
+      render: (r) =>
+        (r.platformCounts ?? []).length
+          ? r.platformCounts.map((row) => `${row.platform} ${row.profileCount}`).join(', ')
+          : r.sourcingPlatform || 'Unknown',
+    },
     { key: 'candidatesSourced', label: 'Sourced', sortable: true, align: 'right' },
     { key: 'candidatesContacted', label: 'Contacted', sortable: true, align: 'right' },
     { key: 'connectedCount', label: 'Connected', sortable: true, align: 'right' },
@@ -134,12 +169,19 @@ export default function DailyReportsPage() {
   ]
 
   async function save(v) {
+    const platformCounts = platforms
+      .map((name) => ({ platform: name, profileCount: Number(v[`platform:${name}`]) || 0 }))
+      .filter((row) => row.profileCount > 0)
+    const dominant = [...platformCounts].sort((a, b) => b.profileCount - a.profileCount)[0]
+
     const body = {
       reportDate: v.reportDate,
       profilesSubmitted: Number(v.profilesSubmitted),
       candidatesSourced: Number(v.candidatesSourced),
       candidatesContacted: Number(v.candidatesContacted),
       connectedCount: Number(v.connectedCount),
+      sourcingPlatform: dominant?.platform ?? null,
+      platformCounts,
       remarks: v.remarks.trim() || null,
     }
     if (form.report) {
@@ -254,8 +296,8 @@ export default function DailyReportsPage() {
           wide
           title={form.report ? 'Edit daily report' : 'New daily report'}
           fields={fields}
-          initialValues={
-            form.report
+          initialValues={{
+            ...(form.report
               ? { ...form.report, clientId: String(form.report.clientId) }
               : {
                   reportDate: todayISO(),
@@ -264,9 +306,15 @@ export default function DailyReportsPage() {
                   candidatesSourced: 0,
                   candidatesContacted: 0,
                   connectedCount: 0,
-                }
-          }
-          validate={validateReport}
+                }),
+            ...Object.fromEntries(
+              platforms.map((name) => [
+                `platform:${name}`,
+                form.report?.platformCounts?.find((row) => row.platform === name)?.profileCount ?? 0,
+              ]),
+            ),
+          }}
+          validate={(values) => validateReport(values, platforms)}
           submitLabel={form.report ? 'Save changes' : 'Submit report'}
           onSubmit={save}
           onClose={() => setForm(null)}

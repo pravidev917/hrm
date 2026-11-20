@@ -8,10 +8,13 @@ import AdministratorsPage from './pages/AdministratorsPage'
 import ClientsPage from './pages/ClientsPage'
 import AttendancePage from './pages/AttendancePage'
 import LeavesPage from './pages/LeavesPage'
+import WfhPage from './pages/WfhPage'
+import OfficeSettingsPage from './pages/OfficeSettingsPage'
 import DailyReportsPage from './pages/DailyReportsPage'
 import WeeklyReportsPage from './pages/WeeklyReportsPage'
 import { FeedbackPage, FollowupsPage } from './pages/recordPages'
 import PerformancePage from './pages/PerformancePage'
+import PerformanceTrackerPage from './pages/PerformanceTrackerPage'
 import ProfilePage from './pages/ProfilePage'
 import { NotFoundPage, UnauthorizedPage } from './pages/StatusPages'
 
@@ -29,10 +32,12 @@ export default function App() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/attendance" element={<AttendancePage />} />
           <Route path="/leaves" element={<LeavesPage />} />
+          <Route path="/wfh" element={<WfhPage />} />
           <Route path="/reports" element={<DailyReportsPage />} />
           <Route path="/weekly-reports" element={<WeeklyReportsPage />} />
           <Route path="/performance" element={<PerformancePage />} />
-          <Route path="/feedback" element={<FeedbackPage />} />
+          <Route path="/candidate-tracking" element={<FeedbackPage />} />
+          <Route path="/feedback" element={<Navigate to="/candidate-tracking" replace />} />
           <Route element={<ProtectedRoute role="EMPLOYEE" />}>
             <Route path="/followups" element={<FollowupsPage />} />
           </Route>
@@ -41,6 +46,8 @@ export default function App() {
             <Route path="/employees" element={<EmployeesPage />} />
             <Route path="/administrators" element={<AdministratorsPage />} />
             <Route path="/clients" element={<ClientsPage />} />
+            <Route path="/office-settings" element={<OfficeSettingsPage />} />
+            <Route path="/performance-tracker" element={<PerformanceTrackerPage />} />
           </Route>
           <Route element={<ProtectedRoute role="EMPLOYEE" />}>
             <Route path="/profile" element={<ProfilePage />} />

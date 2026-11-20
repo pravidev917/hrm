@@ -1,5 +1,9 @@
+import { useMemo } from 'react'
 import RecordsPage from '../components/common/RecordsPage'
 import { feedbackApi, followupApi } from '../api/recordsApi'
+import { sourcingPlatformApi } from '../api/reportingApi'
+import { useAuth } from '../hooks/useAuth'
+import { useFetch } from '../hooks/useFetch'
 import { formatDate } from '../utils/format'
 import StatusBadge from '../components/common/StatusBadge'
 import { clean, clamp } from './recordHelpers'
@@ -7,12 +11,25 @@ import { clean, clamp } from './recordHelpers'
 
 const STATUS_OPTIONS = [
   { value: 'SOURCED', label: 'Sourced' },
+  { value: 'SCREENED', label: 'Screened' },
+  { value: 'SUBMITTED', label: 'Submitted to client' },
   { value: 'INTERVIEW_SCHEDULED', label: 'Interview scheduled' },
   { value: 'INTERVIEW_ATTENDED', label: 'Interview attended' },
-  { value: 'SELECTED', label: 'Selected' },
+  { value: 'OFFERED', label: 'Offered' },
+  { value: 'SELECTED', label: 'Selected (legacy)' },
   { value: 'JOINED', label: 'Joined' },
   { value: 'REJECTED', label: 'Rejected' },
-  { value: 'DROPPED', label: 'Dropped' },
+  { value: 'WITHDRAWN', label: 'Withdrawn' },
+  { value: 'DROPPED', label: 'Dropped (legacy)' },
+]
+
+const FALLBACK_PLATFORMS = [
+  'LinkedIn',
+  'Naukri',
+  'Indeed',
+  'Referral',
+  'Company Website',
+  'Other',
 ]
 
 const YES_NO = [
@@ -28,12 +45,12 @@ const isJoined = (r) => r.status === 'JOINED'
 const isSelected = (r) => r.status === 'JOINED' || r.status === 'SELECTED'
 
 const feedbackConfig = {
-  title: 'Sourced candidates',
-  subtitle: 'Candidates you have sourced, their interview progress and outcome.',
+  title: 'Candidate tracking',
+  subtitle: 'Candidate records from sourcing through interview, offer and joining.',
   noun: 'Candidate',
   idKey: 'feedbackId',
   api: feedbackApi,
-  searchKeys: ['candidateName', 'candidateEmail', 'currentCompany', 'currentDesignation', 'clientName', 'hrName', 'status'],
+  searchKeys: ['candidateName', 'candidateEmail', 'currentCompany', 'currentDesignation', 'clientName', 'hrName', 'status', 'sourcingPlatform'],
   fields: [
     // candidate details
     { name: 'candidateName', label: 'Candidate name', required: true, maxLength: 100, half: true },
@@ -48,6 +65,8 @@ const feedbackConfig = {
     { name: 'expectedCtc', label: 'Expected CTC', type: 'number', min: 0, step: '0.01', half: true },
     { name: 'noticePeriodDays', label: 'Notice period (days)', type: 'number', min: 0, max: 365, half: true },
     { name: 'clientName', label: 'Client name', maxLength: 150, half: true },
+    { name: 'sourcingPlatform', label: 'Sourcing platform', type: 'select', half: true, placeholder: 'Unknown' },
+    { name: 'sourcedDate', label: 'Sourced date', type: 'date', half: true, hint: 'Defaults to today when left blank' },
 
     // interview
     { name: 'interviewScheduled', label: 'Interview scheduled?', type: 'select', options: YES_NO, half: true, placeholder: 'Not set' },
@@ -82,6 +101,8 @@ const feedbackConfig = {
     ['Interview date', r.interviewScheduledDate && formatDate(r.interviewScheduledDate)],
     ['Selected', isSelected(r) ? 'Yes' : 'No'],
     ['Joined', isJoined(r) ? 'Yes' : 'No'],
+    ['Sourcing platform', r.sourcingPlatform || 'Unknown'],
+    ['Sourced date', r.sourcedDate && formatDate(r.sourcedDate)],
     ['Google feedback', isJoined(r) ? (r.googleFeedbackGiven ? 'Given' : 'Not yet') : null],
     ['Notes', r.comments],
   ],
@@ -98,6 +119,8 @@ const feedbackConfig = {
     expectedCtc: clean(v.expectedCtc) == null ? null : Number(v.expectedCtc),
     noticePeriodDays: clean(v.noticePeriodDays) == null ? null : Number(v.noticePeriodDays),
     clientName: clean(v.clientName),
+    sourcingPlatform: clean(v.sourcingPlatform),
+    sourcedDate: clean(v.sourcedDate),
     interviewScheduled: asBool(v.interviewScheduled),
     interviewScheduledDate: clean(v.interviewScheduledDate),
     interviewAttended: asBool(v.interviewAttended),
@@ -132,6 +155,34 @@ const followupConfig = {
 }
 
 
-export const FeedbackPage = () => <RecordsPage config={feedbackConfig} />
+/**
+ * The platform select is filled from the company's own options. Renaming or
+ * disabling an option never rewrites existing candidate records, so old values
+ * keep displaying as text.
+ */
+export const FeedbackPage = () => {
+  const { isAdmin } = useAuth()
+  const fetcher = useMemo(
+    () => () => (isAdmin ? sourcingPlatformApi.admin() : sourcingPlatformApi.employee()),
+    [isAdmin],
+  )
+  const { data } = useFetch(fetcher)
+
+  const config = useMemo(() => {
+    const names = (data ?? []).filter((p) => p.active).map((p) => p.name)
+    const platformOptions = (names.length ? names : FALLBACK_PLATFORMS).map((name) => ({
+      value: name,
+      label: name,
+    }))
+    return {
+      ...feedbackConfig,
+      fields: feedbackConfig.fields.map((field) =>
+        field.name === 'sourcingPlatform' ? { ...field, options: platformOptions } : field,
+      ),
+    }
+  }, [data])
+
+  return <RecordsPage config={config} />
+}
 export const FollowupsPage = () => <RecordsPage config={followupConfig} />
 

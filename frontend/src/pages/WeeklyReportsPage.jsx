@@ -1,5 +1,7 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { adminWeeklyReportApi, employeeWeeklyReportApi } from '../api/reportApi'
+import { clientApi } from '../api/adminApi'
+import { employeePortalApi } from '../api/employeeApi'
 import { useAuth } from '../hooks/useAuth'
 import { useFetch } from '../hooks/useFetch'
 import { useToast } from '../hooks/useToast'
@@ -14,8 +16,9 @@ import { formatDate, formatMoney, matchesQuery, todayISO } from '../utils/format
 
 const COUNT = { type: 'number', min: 0, step: 1, half: true, required: true }
 
-const FIELDS = [
+const BASE_FIELDS = [
   { name: 'reportDate', label: 'Any date in the week', type: 'date', max: todayISO(), required: true, hint: 'The week (Mon–Sun) is worked out by the server' },
+  { name: 'clientId', label: 'Client', type: 'select', options: [], placeholder: 'No client', hint: 'Optional · clients come from Client management' },
   { name: 'profilesSubmitted', label: 'Profiles submitted', ...COUNT },
   { name: 'interviewsScheduled', label: 'Interviews scheduled', ...COUNT },
   { name: 'finalSelections', label: 'Final selections', ...COUNT },
@@ -33,6 +36,24 @@ export default function WeeklyReportsPage() {
   const [form, setForm] = useState(null)
   const [removing, setRemoving] = useState(null)
 
+  // Client options: the employee's own organisation (or every client for an admin).
+  const [clientOptions, setClientOptions] = useState([])
+  useEffect(() => {
+    const load = isAdmin
+      ? clientApi.list().then((rows) =>
+          rows.filter((c) => c.status === 'ACTIVE').map((c) => ({ value: String(c.clientId), label: c.clientCode ? `${c.clientCode} · ${c.clientName}` : c.clientName })),
+        )
+      : employeePortalApi.clients().then((rows) =>
+          rows.map((c) => ({ value: String(c.clientId), label: c.clientCode ? `${c.clientCode} · ${c.clientName}` : c.clientName })),
+        )
+    load.then(setClientOptions).catch(() => setClientOptions([]))
+  }, [isAdmin])
+
+  const FIELDS = useMemo(
+    () => BASE_FIELDS.map((f) => (f.name === 'clientId' ? { ...f, options: clientOptions } : f)),
+    [clientOptions],
+  )
+
   const rows = useMemo(
     () => (data ?? []).filter((r) => matchesQuery(r, query, ['employeeName'])).sort((a, b) => b.weekStartDate.localeCompare(a.weekStartDate)),
     [data, query],
@@ -40,6 +61,7 @@ export default function WeeklyReportsPage() {
 
   const columns = [
     { key: 'weekStartDate', label: 'Week', sortable: true, render: (r) => <>{formatDate(r.weekStartDate)} – {formatDate(r.weekEndDate)}</> },
+    { key: 'clientName', label: 'Client', sortable: true, render: (r) => r.clientName || '—' },
     ...(isAdmin ? [{ key: 'employeeName', label: 'Employee', sortable: true, render: (r) => <strong>{r.employeeName}</strong> }] : []),
     { key: 'profilesSubmitted', label: 'Profiles', sortable: true, align: 'right' },
     { key: 'interviewsScheduled', label: 'Interviews', sortable: true, align: 'right' },
@@ -61,6 +83,7 @@ export default function WeeklyReportsPage() {
   async function save(v) {
     const body = {
       reportDate: v.reportDate,
+      clientId: v.clientId ? Number(v.clientId) : null,
       profilesSubmitted: Number(v.profilesSubmitted),
       interviewsScheduled: Number(v.interviewsScheduled),
       finalSelections: Number(v.finalSelections),
@@ -117,7 +140,15 @@ export default function WeeklyReportsPage() {
           wide
           title={form.report ? 'Edit weekly report' : 'New weekly report'}
           fields={FIELDS}
-          initialValues={form.report ? { ...form.report, reportDate: form.report.weekStartDate } : { reportDate: todayISO(), profilesSubmitted: 0, interviewsScheduled: 0, finalSelections: 0, joined: 0, revenueGenerated: 0 }}
+          initialValues={
+            form.report
+              ? {
+                  ...form.report,
+                  reportDate: form.report.weekStartDate,
+                  clientId: form.report.clientId ? String(form.report.clientId) : '',
+                }
+              : { reportDate: todayISO(), clientId: '', profilesSubmitted: 0, interviewsScheduled: 0, finalSelections: 0, joined: 0, revenueGenerated: 0 }
+          }
           submitLabel={form.report ? 'Save changes' : 'Submit report'}
           onSubmit={save}
           onClose={() => setForm(null)}

@@ -16,11 +16,17 @@ export default function AppLayout() {
 
   // Close the mobile drawer on navigation (state is reset from the click handlers below)
   // and on Escape. Escape is an external event subscription, so an effect is appropriate.
+  // While the drawer is open the page behind it must not scroll, so only the menu moves.
   useEffect(() => {
     if (!open) return
     const onKey = (e) => e.key === 'Escape' && setOpen(false)
     document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.body.style.overflow = previousOverflow
+    }
   }, [open])
 
   const current = navFor(isAdmin).find((item) => item.to === location.pathname)
@@ -32,7 +38,11 @@ export default function AppLayout() {
         Skip to content
       </a>
 
-      <aside className={open ? 'sidebar open sidebar-open-scroll' : 'sidebar'} aria-label="Primary navigation">
+      <aside
+        id="primary-navigation"
+        className={open ? 'sidebar open sidebar-open-scroll' : 'sidebar'}
+        aria-label="Primary navigation"
+      >
         <Brand subtitle={isAdmin ? brand.subtitleAdmin : brand.subtitleEmployee} />
 
         <nav aria-label="Sections">
@@ -84,6 +94,7 @@ export default function AppLayout() {
             className="icon-btn menu-btn"
             aria-label={open ? 'Close navigation' : 'Open navigation'}
             aria-expanded={open}
+            aria-controls="primary-navigation"
             onClick={() => setOpen((o) => !o)}
           >
             <Icon name={open ? 'close' : 'menu'} size={22} />
