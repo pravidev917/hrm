@@ -1,279 +1,326 @@
 # Production runbook — HRM
 
-Everything here is a checklist you can run top to bottom. Nothing in this file
-is applied automatically: each step changes a live system, so run it once and
-record the result.
+> Copy-paste deployment commands live in `docs/PRODUCTION-DEPLOYMENT.md`.
+> This file holds the policy, rationale and resource budget.
 
-Stack: Spring Boot 4 / Java 21 (port 8080) + PostgreSQL 16 + nginx serving the
-built React app and proxying `/api` to the backend.
+Target: AWS EC2 **t3.small** (2 vCPU / 2 GiB), Ubuntu 24.04 LTS.
+Stack: Spring Boot 4.1.2 on Java 21 (port 8080) + PostgreSQL 16 + nginx serving the
+Vite build and proxying `/api` to the backend.
+
+**Already provisioned on the instance — do not recreate:**
+- Java 21 (`/usr/bin/java`)
+- PostgreSQL 16, listening on localhost only
+- Database `hrm_prod`, application role `hrm_app`
+- nginx installed and running
+- 2 GiB swap
+- `/home/ubuntu/hrm_prod_schema.sql` — the 707-byte schema-only dump taken before
+  baselining. It contains dump settings and the completion marker only, which is
+  the evidence that `public` held no application objects. Keep it in place as the
+  pre-baseline record.
+
+Placeholders: `__DOMAIN__` is not decided yet. Certbot presence, certificates and
+the `/opt/hrm`, `/etc/hrm`, `/var/www/hrm` directories are **unverified** — see §0.
+
+---
+
+## 0. Read-only pre-flight (run on the instance, nothing is changed)
+
+```bash
+# Ownership / existence only
+ls -ld /opt /opt/hrm /opt/hrm/backend /etc/hrm /var/www /var/www/hrm 2>&1
+
+# Service account (expected: absent -> create per §2)
+getent passwd hrm || echo "user hrm does not exist"
+
+# Java
+readlink -f /usr/bin/java && /usr/bin/java -version 2>&1 | head -2
+
+# PostgreSQL
+psql --version && systemctl is-active postgresql
+sudo -u postgres psql -tAc "select datname from pg_database where datname='hrm_prod';"
+sudo -u postgres psql -d hrm_prod -tAc "select count(*) from information_schema.tables where table_schema='public';"
+
+# nginx and TLS state
+nginx -v 2>&1
+ls -l /etc/nginx/sites-enabled/ 2>&1
+command -v certbot && certbot certificates 2>&1 | head -20
+ls -l /etc/letsencrypt/live 2>&1
+
+# Capacity
+free -h && df -h / /var && swapon --show
+```
+
+Record the output. Nothing below should be started until these are known.
 
 ---
 
 ## 1. Database
 
-### 1.1 Roles
+### 1.1 Roles — already done
 
-Do not run the application as the `postgres` superuser.
+`hrm_app` owns `hrm_prod`; `postgres` stays for administration. **Do not re-run
+`CREATE ROLE` / `CREATE DATABASE`.** If `hrm_app` ever needs to exist again, the
+reference definition is:
 
 ```sql
 CREATE ROLE hrm_app LOGIN PASSWORD '<generated>';
-CREATE DATABASE hrm_db OWNER hrm_app;
-\c hrm_db
+CREATE DATABASE hrm_prod OWNER hrm_app;
+\c hrm_prod
 REVOKE ALL ON SCHEMA public FROM PUBLIC;
 GRANT USAGE, CREATE ON SCHEMA public TO hrm_app;
--- Backups read every table; the app role never needs CREATEROLE/SUPERUSER.
 ```
 
-`DB_USERNAME=hrm_app`, `DB_PASSWORD=<generated>` in the service environment.
+The application never connects as a superuser.
 
-### 1.2 Schema strategy
+### 1.2 Schema policy
 
-Current default is Hibernate `ddl-auto=update`, which is fine for development and
-not fine for production: it hides schema drift and cannot roll back.
+- Production runs `DB_DDL_AUTO=validate` (also forced by
+  `application-prod.properties`). Hibernate never alters the schema there.
+- The schema comes from `docs/migrations/V1__baseline_schema.sql`, which is
+  generated from the entity mappings and guarded to run only against an empty
+  `public` schema. It was verified by creating a scratch database from it and
+  booting the application with `validate`.
+- Later changes are hand-written `Vn__*.sql` files; see `docs/migrations/README.md`.
+- `vw_monthly_performance` is created as a **table**, matching the
+  `@Immutable` entity: no controller exposes it, nothing writes aggregate rows,
+  and the only live use is the delete cascade in `EmployeeService`, which a real
+  SQL view could not support.
 
-1. Baseline once (on the release where the schema is correct):
-
-   ```bash
-   pg_dump --schema-only -U postgres hrm_db > hrm-schema-baseline.sql
-   ```
-
-2. Switch production to `DB_DDL_AUTO=validate`. Entity changes then fail the
-   boot instead of silently altering tables.
-3. For every later entity change, write the `ALTER TABLE` by hand, apply it in
-   staging first, then production, and commit the SQL under `docs/migrations/`.
-4. Durable fix when there is time: add Flyway with the baseline as `V1`.
-
-### 1.3 Backups
-
-- Nightly logical dump, compressed, off the box:
-
-  ```bash
-  pg_dump -U hrm_app -Fc hrm_db > /var/backups/hrm/hrm-$(date +%F).dump
-  aws s3 cp /var/backups/hrm/hrm-$(date +%F).dump s3://<bucket>/hrm/
-  ```
-
-  Keep 30 days (`aws s3api put-bucket-lifecycle-configuration`).
-- EBS snapshot of the data volume daily, 7-day retention (AWS console →
-  Data Lifecycle Manager), which covers the case where the dump job itself dies.
-- Restore drill (do it once, then quarterly, on a scratch host):
-
-  ```bash
-  createdb hrm_restore_test
-  pg_restore -d hrm_restore_test /var/backups/hrm/hrm-<date>.dump
-  psql -d hrm_restore_test -c "select count(*) from employees;"
-  ```
-
-  A backup nobody restored is not a backup. Write the restore date and row
-  counts into this file.
-
----
-
-## 2. Backend service
-
-### 2.1 Environment file
-
-`/etc/hrm/backend.env`, mode `600`, owner the service user:
-
-```
-DB_URL=jdbc:postgresql://127.0.0.1:5432/hrm_db
-DB_USERNAME=hrm_app
-DB_PASSWORD=<generated>
-DB_DDL_AUTO=validate
-JPA_SHOW_SQL=false
-JWT_SECRET=<openssl rand -base64 48>
-JWT_EXPIRATION_MS=86400000
-COOKIE_SECURE=true
-COOKIE_SAME_SITE=Lax
-CORS_ALLOWED_ORIGINS=https://hrm.example.com
-LOGIN_MAX_ATTEMPTS=5
-LOGIN_LOCK_MINUTES=15
-DEFAULT_ADMIN_EMAIL=<first admin>
-DEFAULT_ADMIN_PASSWORD=<12+ chars, changed after first sign-in>
-```
-
-`JWT_SECRET` shorter than 32 bytes now stops the application on purpose.
-Rotating it invalidates every existing session (all users sign in again).
-
-### 2.2 systemd unit
-
-`/etc/systemd/system/hrm-backend.service`:
-
-```ini
-[Unit]
-Description=HRM backend
-After=network-online.target postgresql.service
-Wants=network-online.target
-
-[Service]
-User=hrm
-WorkingDirectory=/opt/hrm/backend
-EnvironmentFile=/etc/hrm/backend.env
-ExecStart=/usr/bin/java -XX:MaxRAMPercentage=60 -jar /opt/hrm/backend/backend.jar
-SuccessExitStatus=143
-Restart=on-failure
-RestartSec=5
-# Logs go to the journal: journalctl -u hrm-backend -f
-StandardOutput=journal
-StandardError=journal
-
-[Install]
-WantedBy=multi-user.target
-```
+### 1.3 Baseline procedure
 
 ```bash
-sudo systemctl daemon-reload && sudo systemctl enable --now hrm-backend
-journalctl -u hrm-backend -n 50 --no-pager
+sudo systemctl stop hrm-backend           # if it is running
+deploy/scripts/backup-db.sh               # always dump first
+
+psql -h 127.0.0.1 -p 5432 -U hrm_app -d hrm_prod \
+     -v ON_ERROR_STOP=1 -f docs/migrations/V1__baseline_schema.sql
+
+psql -h 127.0.0.1 -p 5432 -U hrm_app -d hrm_prod \
+     -tAc "select count(*) from information_schema.tables
+           where table_schema='public' and table_type='BASE TABLE';"   # expect 12
 ```
 
-### 2.3 Build artefact
+### 1.4 Backups
+
+`deploy/scripts/backup-db.sh` writes `pg_dump -Fc` files to
+`/var/backups/hrm`, verifies them with `pg_restore --list`, and keeps 30 days.
+Schedule it and copy off-box:
 
 ```bash
-cd backend && ./mvnw -DskipTests clean package
-scp target/backend-0.0.1-SNAPSHOT.jar root@host:/opt/hrm/backend/backend.jar
+# /etc/cron.d/hrm-backup
+15 2 * * * root /opt/hrm/deploy/scripts/backup-db.sh >> /var/log/hrm-backup.log 2>&1
+# plus: aws s3 cp via an instance role (no static keys on the box)
 ```
 
-Restart, then verify `/actuator`-free health by signing in through the UI.
+EBS snapshots (Data Lifecycle Manager, daily, 7 retained) cover the case where
+the dump job itself dies.
 
----
+**Restore drill** — do it once now and quarterly on a scratch database:
 
-## 3. nginx and HTTPS
-
-`/etc/nginx/sites-available/hrm`:
-
-```nginx
-limit_req_zone $binary_remote_addr zone=hrm_login:10m rate=10r/m;
-
-server {
-    listen 80;
-    server_name hrm.example.com;
-    return 301 https://$host$request_uri;
-}
-
-server {
-    listen 443 ssl http2;
-    server_name hrm.example.com;
-
-    ssl_certificate     /etc/letsencrypt/live/hrm.example.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/hrm.example.com/privkey.pem;
-    ssl_protocols TLSv1.2 TLSv1.3;
-
-    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
-
-    root /var/www/hrm;
-    index index.html;
-
-    location /assets/ {
-        expires 1y;
-        add_header Cache-Control "public, immutable";
-    }
-
-    # SPA routes fall back to index.html, never cached.
-    location / {
-        try_files $uri $uri/ /index.html;
-        add_header Cache-Control "no-store";
-    }
-
-    location /api/ {
-        proxy_pass http://127.0.0.1:8080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $remote_addr;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    # Generic password guessing is already throttled in the app; this is the
-    # second layer and keeps the JVM free under a spray.
-    location = /api/auth/admin/login    { limit_req zone=hrm_login burst=5 nodelay; proxy_pass http://127.0.0.1:8080; include /etc/nginx/proxy_params; }
-    location = /api/auth/employee/login { limit_req zone=hrm_login burst=5 nodelay; proxy_pass http://127.0.0.1:8080; include /etc/nginx/proxy_params; }
-}
+```bash
+createdb -O hrm_app hrm_restore_test
+pg_restore -d hrm_restore_test /var/backups/hrm/hrm_prod-<stamp>.dump
+psql -d hrm_restore_test -c "select count(*) from employees;"
+dropdb hrm_restore_test
 ```
 
-`certbot --nginx -d hrm.example.com`, then `systemctl reload nginx`.
-Renewal is automatic via the certbot timer — confirm with
-`systemctl list-timers | grep certbot`.
-
-Frontend build: `VITE_API_BASE_URL=https://hrm.example.com npm run build`, copy
-`dist/` to `/var/www/hrm`.
+`deploy/scripts/restore-db.sh <dump> --confirm` restores in place; it always takes
+a fresh backup first.
 
 ---
 
-## 4. AWS infrastructure
+## 2. Filesystem and service account
 
-### 4.1 Audit the existing instance before replacing anything
+Proposed layout (verify in §0 first):
 
-1. SSH in and record: `uname -a`, `df -h`, `free -h`, `ps aux | head -40`,
-   `ss -tulpn`, `systemctl list-units --type=service --state=running`.
-2. Inventory what is actually serving traffic: nginx site configs, systemd units
-   under `/etc/systemd/system`, cron jobs (`crontab -l`, `/etc/cron.*`), the
-   application directories (often `/var/www`, `/opt`, or a home directory).
-3. Dump the database and copy the dump down: `pg_dump -Fc <db> > old.dump`.
-4. Note DNS records (`dig +short A hrm.example.com`), TLS certificate expiry,
-   Elastic IP association, and any Security Group rules pointing at the old box.
-5. Only then decide: in-place upgrade vs. new instance + DNS switch. In-place is
-   faster; a new instance keeps a rollback path until TTL expiry.
+| Path | Owner:group | Mode | Purpose |
+|------|-------------|------|---------|
+| `/opt/hrm/backend/` | `hrm:hrm` | `0750` | `backend.jar`, `backend.jar.prev` |
+| `/etc/hrm/backend.env` | `root:hrm` | `0640` | secrets, read by systemd |
+| `/etc/systemd/system/hrm-backend.service` | `root:root` | `0644` | unit |
+| `/var/www/hrm/` | `www-data:www-data` | `0755` | SPA bundle |
+| `/var/backups/hrm/` | `root:hrm` | `0750` | database dumps |
 
-### 4.2 Target instance
+Dedicated service account (no login shell, no home writes):
 
-- **t3.small (2 vCPU / 2 GB)** default; **t3.medium** if the DB lives on the
-  same host as the app and reports get heavy. Both are burstable — check
-  CloudWatch CPU credit balance after a week.
-- Ubuntu 24.04 LTS, 20 GB gp3 root. Put `/var/lib/postgresql` on a separate gp3
-  volume so snapshots and resize are independent.
-- Elastic IP so DNS does not follow a changed public address.
-- Key pair: one named key, `chmod 400`, no shared logins; add `sudo` user.
+```bash
+sudo useradd --system --shell /usr/sbin/nologin --home /opt/hrm hrm
+sudo mkdir -p /opt/hrm/backend /etc/hrm /var/www/hrm /var/backups/hrm
+sudo chown -R hrm:hrm /opt/hrm/backend
+sudo chown root:hrm /etc/hrm
+sudo chown -R www-data:www-data /var/www/hrm
+sudo chown -R root:hrm /var/backups/hrm
+sudo chmod 750 /opt/hrm/backend /var/backups/hrm
+```
 
-### 4.3 Security groups
-
-| Port | Source | Purpose |
-|------|--------|---------|
-| 22 | your admin IP /32 only | SSH |
-| 80 | 0.0.0.0/0 | ACME + redirect |
-| 443 | 0.0.0.0/0 | HTTPS |
-| 5432 | never public | PostgreSQL is localhost-only |
-
-Also enable UFW on the host (`ufw allow OpenSSH`, `ufw allow 'Nginx Full'`,
-`ufw enable`) so a Security Group mistake is not the only barrier.
-
-### 4.4 Backups on AWS
-
-- Data Lifecycle Manager policy: daily EBS snapshot, keep 7.
-- S3 bucket for `pg_dump` output, versioned, blocked public access, lifecycle
-  30 days. Use an instance role for `aws s3 cp` — no static keys on the box.
-- CloudWatch alarm on `StatusCheckFailed` and on root-volume free space < 15 %.
+The application runs as `hrm`, never as `ubuntu`. `hrm` needs no sudo, no shell
+and no access outside the paths above.
 
 ---
 
-## 5. Pre-deployment tests
+## 3. Configuration
 
-Run from the repository root before every release:
+`/etc/hrm/backend.env` from `deploy/backend.env.example`
+(`chown root:hrm`, `chmod 640`). Key points:
+
+| Key | Production value |
+|-----|------------------|
+| `DB_URL` | `jdbc:postgresql://127.0.0.1:5432/hrm_prod` |
+| `DB_USERNAME` | `hrm_app` |
+| `DB_DDL_AUTO` | `validate` |
+| `SPRING_PROFILES_ACTIVE` | `prod` |
+| `COOKIE_SECURE` | `true` (false only until a certificate exists) |
+| `CORS_ALLOWED_ORIGINS` | `https://__DOMAIN__` (unused for same-origin requests) |
+| `APP_TIMEZONE` | `Asia/Kolkata` |
+| `JWT_SECRET` | `openssl rand -base64 48` — ≥32 bytes enforced at boot |
+| `DEFAULT_ADMIN_*` | first admin only; remove after the first sign-in |
+
+`JWT_SECRET` under 32 bytes stops the application on purpose. Rotating it signs
+everyone out. `backend.env` is never committed; the repo only carries the
+template.
+
+---
+
+## 4. systemd
+
+Unit: `deploy/systemd/hrm-backend.service` (JVM shaped for 2 GiB:
+`-Xms256m -Xmx768m -XX:MaxMetaspaceSize=256m`, `TZ=Asia/Kolkata`,
+`-Duser.timezone=Asia/Kolkata`, journald output, `Restart=always`).
+
+```bash
+sudo cp deploy/systemd/hrm-backend.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now hrm-backend
+journalctl -u hrm-backend -n 40 --no-pager
+curl -fsS http://127.0.0.1:8080/api/health      # {"status":"UP", ...}
+```
+
+`GET /api/health` runs `SELECT 1` and returns `503` when the database is
+unreachable; it is the probe used by the deploy scripts and nginx.
+
+Behaviour, verified locally: with the database available the endpoint returns
+`200 {"status":"UP"}`, and if the database disappears while the JVM is running it
+returns `503 {"status":"DOWN"}`. If the database is already unreachable **at
+boot** the application stops during startup instead (Hibernate cannot read the
+schema), so `systemd` restarts it and `journalctl` shows the connection error —
+that is intended fail-fast behaviour, not a health-check gap.
+
+---
+
+## 5. nginx and TLS (same-origin)
+
+`deploy/nginx/hrm.conf` (placeholders `__DOMAIN__`) serves `/var/www/hrm` and
+proxies `/api/` to `127.0.0.1:8080`, adds HSTS/no-sniff/DENY/no-referrer,
+rate-limits the two sign-in paths, and keeps `/api/health` out of the access log.
+
+```bash
+sudo cp deploy/nginx/hrm.conf /etc/nginx/sites-available/hrm
+sudo ln -sf /etc/nginx/sites-available/hrm /etc/nginx/sites-enabled/hrm
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+**Before a certificate exists** the 443 block cannot load. Serve the app over the
+HTTP block instead (the file contains a clearly marked INTERIM section), keep
+`COOKIE_SECURE=false`, and do not expose the site publicly until TLS is ready.
+
+Paths this file assumes (all from the templates above):
+
+| Reference | Value |
+|-----------|-------|
+| Backend jar | `/opt/hrm/backend/backend.jar` (previous: `backend.jar.prev`) |
+| ACME webroot | `/var/www/certbot` — create it once: `sudo mkdir -p /var/www/certbot` |
+| Certificate | `/etc/letsencrypt/live/__DOMAIN__/fullchain.pem` + `privkey.pem` (created by certbot) |
+| Interim proxy snippet | `/etc/nginx/proxy_params` (Ubuntu package default, used only by the INTERIM HTTP block) |
+
+TLS: `sudo certbot --nginx -d __DOMAIN__` (pending verification that certbot is
+installed), then set `COOKIE_SECURE=true`, restart the backend, and re-run
+`deploy/scripts/verify-deployment.sh https://__DOMAIN__`.
+
+Frontend build: `VITE_API_BASE_URL=` (empty) → the bundle calls relative
+`/api/...`. Never a `localhost` URL in a production bundle; the release script
+fails the build if it finds one.
+
+---
+
+## 6. Timezone
+
+- OS: `sudo timedatectl set-timezone Asia/Kolkata`.
+- Service: `Environment=TZ=Asia/Kolkata` and `-Duser.timezone=Asia/Kolkata`.
+- Application: `APP_TIMEZONE=Asia/Kolkata` (JSON timestamps).
+
+Storage and display: columns are `timestamp(6) without time zone` and `date`.
+Values are written from the JVM clock, so the pinned JVM timezone is what makes
+"today" mean the same day for attendance, leave and reports. JSON timestamps are
+serialised as ISO-8601 strings from the same zone. Changing the timezone later
+does not rewrite stored values — decide it before loading real data.
+
+---
+
+## 7. Release procedure
+
+Build on a development machine or CI (never on the 2 GiB instance):
+
+```bash
+deploy/scripts/build-release.sh        # -> build/release/<stamp>/{backend.jar,dist}
+```
+
+Then on the server:
+
+```bash
+sudo deploy/scripts/deploy-frontend.sh build/release/<stamp>/dist
+sudo deploy/scripts/deploy-backend.sh  build/release/<stamp>/backend.jar
+deploy/scripts/verify-deployment.sh https://__DOMAIN__
+```
+
+`deploy-backend.sh` keeps `backend.jar.prev`, waits up to 60 s for `/api/health`
+and rolls back automatically. `deploy-frontend.sh` swaps via a staging directory
+and keeps the previous bundle as a marked `<web-root>.prev-<stamp>-<pid>` directory.
+
+---
+
+## 8. Verification checklist (after every deploy)
 
 | Check | Command | Expected |
 |-------|---------|----------|
-| Backend unit tests | `cd backend && ./mvnw -o test` | all pass |
-| Frontend lint | `cd frontend && npx eslint src --max-warnings=0` | no output |
-| Frontend build | `cd frontend && npm run build` | `dist/` produced |
-| Admin sign-in | `POST /api/auth/admin/login` | 200 + `Set-Cookie: HttpOnly; Secure` |
-| Employee sign-in | `POST /api/auth/employee/login` | 200, no token in the body/headers |
-| Wrong password | same endpoint, bad password | 401 `Invalid email or password` |
-| Throttle | 6 bad attempts on one identifier | 5×401 then 429 |
+| Health | `curl -s http://127.0.0.1:8080/api/health` | `{"status":"UP",...}` |
+| Boot log clean | `journalctl -u hrm-backend -n 50` | `Started BackendApplication`, no schema-validation error |
+| Structural checks | `deploy/scripts/verify-deployment.sh https://__DOMAIN__` | all PASS |
+| Admin sign-in | `/admin/login` | cookie `HttpOnly; Secure; SameSite=Lax`, no token readable by JS |
+| Employee sign-in | `/login` with employee ID, email and phone | 200 each |
 | Role boundary | employee cookie → `GET /api/admin/employees` | 403 |
-| Ownership | admin B → `GET /api/admin/employees/{id of admin A's employee}` | 403 |
-| Employee scope | employee cookie → `GET /api/employee/profile` | own record only |
-| CRUD | create → update → deactivate → delete an employee | 200/204, list reflects it |
-| Error shape | `GET /api/employee/leaves/999999` | 404 with `{"message": ...}`, no stack trace |
+| Cross-admin isolation | admin B → `GET /api/admin/employees/{id of admin A}` | 403 |
+| Throttle | 6 bad attempts | `401 ×5` then `429` |
+| CRUD | create → update → deactivate → delete an employee | 200/204 |
+| Restart resilience | `systemctl restart hrm-backend` | healthy within ~15 s |
+| Backup | `deploy/scripts/backup-db.sh` | dump verified by `pg_restore --list` |
 
-## 6. Production verification after deploy
+---
 
-1. `https://hrm.example.com` loads, redirects HTTP → HTTPS, HSTS header present
-   (`curl -sI https://hrm.example.com`).
-2. Admin signs in at `/admin/login`; the cookie in DevTools shows
-   `HttpOnly` + `Secure` + `SameSite=Lax` and no JS-readable token exists.
-3. Employee signs in at `/login` with employee ID, email and phone (all three).
-4. Create an employee, an attendance row, a daily report and a leave request;
-   approve the leave as admin; confirm the employee sees the new status.
-5. Deactivate an employee who is signed in: their next request returns 403 and
-   the UI returns to the login page.
-6. `systemctl restart hrm-backend` → the app is back within ~15 s and existing
-   sessions still work (JWT is stateless) or, if `JWT_SECRET` changed, everyone
-   signs in again.
-7. Restore drill: create a scratch DB from yesterday's dump and count rows.
-8. Check `journalctl -u hrm-backend --since -10m` for stack traces.
+## 9. Rollback
+
+| Scenario | Action |
+|----------|--------|
+| Bad backend jar | automatic rollback by `deploy-backend.sh` (restart **or** health-gate failure); manually: `cp backend.jar.prev backend.jar && systemctl restart hrm-backend`. The failed jar is kept as `backend.jar.failed-<stamp>`; with no previous jar the service is left stopped instead of restart-looping |
+| Bad frontend bundle | `mv /var/www/hrm /var/www/hrm.failed-$(date +%s) && mv /var/www/hrm.prev-<stamp>-<pid> /var/www/hrm` (the deploy script does this automatically if its post-swap check fails, and rotates only marked bundles) |
+| Bad nginx config | restore `sites-available/hrm` backup, `nginx -t`, reload |
+| `validate` fails after a migration | stop, correct the SQL, retry with `DB_DDL_AUTO=validate`; **never** fall back to `update` in production |
+| Bad migration with data loss | `systemctl stop hrm-backend`, `deploy/scripts/restore-db.sh <dump> --confirm` (add `--auto-recover` to replay the safety dump if the restore itself fails), start |
+| Bad application code | `git revert <commit>` on `develop`, rebuild, redeploy |
+
+---
+
+## 10. Resource budget (t3.small, 2 GiB + 2 GiB swap)
+
+| Component | Budget |
+|-----------|--------|
+| OS + journald (`SystemMaxUse=500M`) | ~250 MB |
+| nginx | ~40 MB |
+| PostgreSQL (`shared_buffers=256MB`, `effective_cache_size=768MB`, `work_mem=8MB`, `maintenance_work_mem=128MB`, `max_connections=50`) | ~400 MB |
+| JVM heap 768 MB + metaspace 256 MB | ~1.0 GB |
+| JVM overhead (code cache, stacks, direct) | ~200 MB |
+| **Total** | **≈1.9 GB** |
+| App connection pool (`DB_POOL_SIZE=8`) | bounded, leaves PG headroom |
+| Builds | **not on the instance** (Vite peaks ~700 MB) |
+
+Also recommended: `vm.swappiness=10`, disk alarm at 15 % free, CloudWatch alarm
+on `StatusCheckFailed`.
