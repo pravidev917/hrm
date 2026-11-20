@@ -30,3 +30,9 @@ Desktop.ini
 *.p12
 *.pfx
 *.jks
+
+# release artefacts produced by deploy/scripts/build-release.*
+build/
+
+# packaged deliverables from deploy/scripts/build-release.*
+handoff/
