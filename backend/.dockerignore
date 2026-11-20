@@ -1,0 +1,23 @@
+# Never send secrets, local databases or build artefacts into the image context.
+.git/
+.gitignore
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.log
+*.sql
+*.dump
+*.backup
+*.bak
+target/
+HELP.md
+*.md
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

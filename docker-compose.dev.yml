@@ -1,0 +1,107 @@
+# HRM — development Docker stack (hot reload, source bind-mounted).
+#
+#   cp .env.example .env      # once; compose reads it for the ${...} values
+#   docker compose -f docker-compose.dev.yml up
+#   open http://localhost:5173        (SPA, hot reload)
+#   API: http://localhost:8080        (Spring Boot, spring-boot:run)
+#
+# Nothing is built into images here: the backend runs from ./backend with a
+# persistent Maven cache volume, the frontend from ./frontend with a persistent
+# node_modules volume. Frontend edits reload in the browser immediately; backend
+# edits need a restart of the backend service (no devtools on the classpath):
+#
+#   docker compose -f docker-compose.dev.yml restart backend
+#
+# This stack is independent of docker-compose.yml: project name hrm-dev, its own
+# data volume, and the database port is published so psql/DBeaver can attach.
+#
+# See docs/DOCKER.md.
+
+name: hrm-dev
+
+x-backend-env: &backend-env
+  DB_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-hrm_db}
+  DB_USERNAME: ${POSTGRES_USER:-postgres}
+  DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is not set - copy .env.example to .env}
+  DB_DDL_AUTO: update          # dev only: Hibernate may evolve the schema
+  DB_POOL_SIZE: ${DB_POOL_SIZE:-8}
+  JPA_SHOW_SQL: "false"
+  JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is not set - copy .env.example to .env (min 32 bytes)}
+  JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-86400000}
+  COOKIE_SECURE: "false"       # plain HTTP over localhost only
+  COOKIE_SAME_SITE: ${COOKIE_SAME_SITE:-Lax}
+  APP_TIMEZONE: ${APP_TIMEZONE:-Asia/Kolkata}
+  ATTENDANCE_MAX_ACCURACY_METERS: ${ATTENDANCE_MAX_ACCURACY_METERS:-50}
+  LOCATION_MAX_AGE_SECONDS: ${LOCATION_MAX_AGE_SECONDS:-120}
+  # The SPA is served by Vite on 5173 here, so the browser really is cross-origin.
+  # Both spellings of the host are listed: browsers send the address bar value.
+  CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:${HRM_WEB_PORT:-5173},http://127.0.0.1:${HRM_WEB_PORT:-5173}}
+  SERVER_PORT: "8080"
+  LOGIN_MAX_ATTEMPTS: ${LOGIN_MAX_ATTEMPTS:-5}
+  LOGIN_LOCK_MINUTES: ${LOGIN_LOCK_MINUTES:-15}
+  LOG_LEVEL_ROOT: ${LOG_LEVEL_ROOT:-INFO}
+  LOG_LEVEL_APP: ${LOG_LEVEL_APP:-INFO}
+  DEFAULT_ADMIN_EMAIL: ${DEFAULT_ADMIN_EMAIL:-}
+  DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-}
+  DEFAULT_ADMIN_NAME: ${DEFAULT_ADMIN_NAME:-Administrator}
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-hrm_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is not set - copy .env.example to .env}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+      - ./docs/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    ports:
+      - "${HRM_DB_PORT:-55432}:5432"
+    restart: unless-stopped
+
+  backend:
+    image: maven:3.9-eclipse-temurin-21
+    working_dir: /app
+    environment: *backend-env
+    volumes:
+      - ./backend:/app
+      - m2-cache:/root/.m2
+    command: ["sh", "-c", "mvn -B -DskipTests spring-boot:run"]
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "${HRM_API_PORT:-8080}:8080"
+    restart: unless-stopped
+
+  web:
+    image: node:22-alpine
+    working_dir: /app
+    environment:
+      # vite.config.js forwards /api to this target inside the compose network.
+      VITE_PROXY_TARGET: http://backend:8080
+      # Windows/macOS bind mounts do not emit inotify events reliably.
+      VITE_USE_POLLING: "1"
+    volumes:
+      - ./frontend:/app
+      - node-modules:/app/node_modules
+    command:
+      - sh
+      - -c
+      - npm ci && npm run dev -- --host 0.0.0.0 --port 5173
+    ports:
+      - "${HRM_WEB_PORT:-5173}:5173"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  db-data:
+  m2-cache:
+  node-modules:
