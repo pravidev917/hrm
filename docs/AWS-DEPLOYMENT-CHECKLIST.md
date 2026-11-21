@@ -58,17 +58,25 @@ this tree started against a PostgreSQL 16 database bootstrapped with V1…V5 und
 
 ## Step 3 — Terraform infrastructure
 
+Environments are described in `docs/ENVIRONMENTS.md`: **staging** (private, no
+Elastic IP, reached over localhost via SSM port forwarding) and **production**
+(public, TLS in front). Separate state, separate database, separate secrets.
+
 - [ ] `[local]` AWS credentials with permission for ECR, RDS, EC2, EIP, IAM, SSM,
       KMS. Confirm: `aws sts get-caller-identity`.
-- [ ] `[local]` `cd deploy/aws/terraform && cp terraform.tfvars.example terraform.tfvars`
-      and set `aws_region`, `ssh_cidr` (empty = SSM only), `http_cidr`,
-      `db_instance_class`, `db_deletion_protection`.
-- [ ] `[local]` Move state out of the working tree before the first apply:
-      S3 bucket + DynamoDB lock table, then `terraform init -migrate-state`.
-      State contains the generated DB password and JWT secret.
-- [ ] `[local]` `terraform init && terraform plan -var-file=terraform.tfvars`
-      — read the plan; expect ~20 resources, no replacement of anything existing.
-- [ ] `[local]` `terraform apply -var-file=terraform.tfvars`.
+- [ ] `[local]` `cd deploy/aws/terraform`, then for each environment:
+      `cp backend.<env>.hcl.example backend.<env>.hcl` (S3 bucket, state key,
+      DynamoDB lock table) and `cp <env>.tfvars.example <env>.tfvars`.
+      Review `http_cidr` (production: tighten; staging: stays `""`),
+      `db_instance_class`, `db_deletion_protection`, `manage_ecr`.
+- [ ] `[local]` `terraform init -backend-config=backend.production.hcl` then
+      `terraform plan -var-file=production.tfvars` — expect the two ECR
+      repositories plus the production stack; read it before applying.
+- [ ] `[local]` `terraform apply -var-file=production.tfvars` (approval gate).
+- [ ] `[local]` `terraform init -backend-config=backend.staging.hcl -reconfigure`
+      then `terraform plan -var-file=staging.tfvars`: no Elastic IP, no 80/443/8080
+      ingress, `manage_ecr = false`, `db_deletion_protection = false`.
+- [ ] `[local]` `terraform apply -var-file=staging.tfvars` (approval gate).
 - [ ] `[local]` Record the outputs: `ecr_registry`, `ecr_backend_repository`,
       `ecr_web_repository`, `app_public_ip`, `db_endpoint`, `db_name`,
       `db_username`, `db_password_ssm_parameter`, `jwt_secret_ssm_parameter`.
@@ -76,8 +84,11 @@ this tree started against a PostgreSQL 16 database bootstrapped with V1…V5 und
 **Done when** `terraform output` is captured in the team password manager and RDS
 shows `Publicly accessible: No`.
 
-Cost baseline to watch: RDS `db.t4g.micro` + 20 GB gp3, one `t3.small`, one EIP,
-ECR storage. Roughly $45–60/month in `ap-south-1` with no NAT gateway.
+Cost baseline to watch: per stack one `t3.small` (~$17), one `db.t4g.micro` +
+20 GB gp3 (~$16), plus ECR/SSM/state cents. Staging has no Elastic IP; production
+adds one. Together roughly **$70–80/month** in `ap-south-1` with no NAT gateway,
+Multi-AZ off. Stopping the staging instance when idle removes most of its compute
+cost (RDS keeps billing).
 
 ---
 

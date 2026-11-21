@@ -28,33 +28,56 @@ web container's nginx at the ALB DNS name.
 
 ---
 
+## 0. Which environment?
+
+`docs/ENVIRONMENTS.md` describes all three (local / staging / production). Short
+version: local is Docker on your machine, staging is a private AWS stack reached
+through SSM port forwarding, production is the public stack behind TLS. The two
+AWS stacks are separate Terraform states, separate RDS instances, separate SSM
+parameters and separate GitHub Environments.
+
 ## 1. Local / single-host stack (no AWS needed)
 
 ```bash
-cp .env.example .env            # fill DB_PASSWORD and JWT_SECRET
-docker compose up -d --build
-docker compose ps               # db + backend + web, all healthy
-open http://localhost:8080
+cp .env.example .env                        # fill DB_PASSWORD and JWT_SECRET
+docker compose -p hrm-local up -d --build   # separate project name + port
+open http://localhost:18080                 # HRM_HTTP_PORT in .env
 ```
 
-PostgreSQL applies `docs/migrations/V1__baseline_schema.sql` on the first start
-of an empty volume; the backend then runs with `DB_DDL_AUTO=validate`.
+`-p hrm-local` keeps this stack away from any other project already publishing
+port 8080 on the machine. Nothing in this path reads an AWS credential.
+
+PostgreSQL applies `docs/migrations/V*.sql` on the first start of an empty
+volume; the backend then runs with `DB_DDL_AUTO=validate`.
 
 Teardown: `docker compose down` (add `-v` to also drop the database volume).
 
-## 2. Provision AWS
+## 2. Provision AWS (one stack per environment)
 
 ```bash
 cd deploy/aws/terraform
-cp terraform.tfvars.example terraform.tfvars     # set region, CIDRs, sizes
-terraform init
-terraform plan  -var-file=terraform.tfvars
-terraform apply -var-file=terraform.tfvars
+
+# staging: no Elastic IP, no inbound ports, small database
+cp backend.staging.hcl.example backend.staging.hcl   # S3 bucket / key / lock table
+cp staging.tfvars.example staging.tfvars
+terraform init -backend-config=backend.staging.hcl
+terraform plan  -var-file=staging.tfvars
+terraform apply -var-file=staging.tfvars
+
+# production: owns the shared ECR repositories
+cp backend.production.hcl.example backend.production.hcl
+cp production.tfvars.example production.tfvars
+terraform init -backend-config=backend.production.hcl -reconfigure
+terraform plan  -var-file=production.tfvars
+terraform apply -var-file=production.tfvars
 ```
 
-Creates: two ECR repositories, one RDS PostgreSQL 16 instance (private, only the
-app security group may connect), one Amazon Linux 2023 instance with Docker,
-an Elastic IP, and the SSM parameters `/hrm/DB_PASSWORD` and `/hrm/JWT_SECRET`.
+Creates, per environment: one RDS PostgreSQL 16 instance (private, only that
+stack's app security group may connect), one Amazon Linux 2023 instance with
+Docker, and the SSM parameters `/hrm/<environment>/DB_PASSWORD` and
+`/hrm/<environment>/JWT_SECRET`. Production adds the Elastic IP, the public
+listeners and the two shared ECR repositories (`manage_ecr = true`); staging
+skips all three.
 
 Outputs you need next: `ecr_backend_repository`, `ecr_web_repository`,
 `app_public_ip`, `db_endpoint`, `db_name`, `db_username`.
