@@ -31,21 +31,16 @@ Desktop.ini
 *.pfx
 *.jks
 
-# release artefacts produced by deploy/scripts/build-release.*
+# Build output that is not source
+dist/
+frontend/dist/
+backend/target/
+
+# local database dumps taken before a schema change
+.backups/
+
+# Local scratch and packaged artefacts
+.diag/
 build/
-
-# packaged deliverables from deploy/scripts/build-release.*
 handoff/
-
-# Netlify deploy artefact (the project deploys to AWS only)
 /frontend.zip
-
-# Terraform working files (state holds generated passwords - never commit)
-deploy/aws/terraform/.terraform/
-deploy/aws/terraform/*.tfstate
-deploy/aws/terraform/*.tfstate.*
-deploy/aws/terraform/crash.log
-deploy/aws/terraform/.terraform.lock.hcl.bak
-# Real values may contain the database password and JWT secret.
-deploy/aws/terraform/terraform.tfvars
-deploy/aws/terraform/*.auto.tfvars

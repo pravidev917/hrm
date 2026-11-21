@@ -138,13 +138,12 @@ The attendance page shows:
 
 ## Applying the migration
 
-The Docker database applies `V1..V4` only when its volume is empty. On an
-existing volume, apply V4 by hand before starting the new backend:
+The migrations are applied in order, once, to your local database:
 
 ```bash
-docker compose exec -T db psql -U postgres -d hrm_db -v ON_ERROR_STOP=1 \
-  < docs/migrations/V4__office_location_and_wfh.sql
-docker compose up -d --build backend web
+psql -d hrm_db -v ON_ERROR_STOP=1 -f docs/migrations/V4__office_location_and_wfh.sql
 ```
 
-Never delete the `db-data` volume to apply a migration.
+Apply `V1` through `V5` in filename order on a fresh database, then restart the
+backend. Never drop the database to "fix" a migration - write the missing
+`ALTER TABLE` instead.
