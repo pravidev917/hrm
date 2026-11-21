@@ -1,0 +1,9 @@
+# Copy to backend.staging.hcl and fill in. Never commit the real file.
+#
+#   terraform init -backend-config=backend.staging.hcl
+#   terraform apply -var-file=staging.tfvars
+bucket         = "<state-bucket>"
+key            = "hrm/staging/terraform.tfstate"
+region         = "ap-south-1"
+dynamodb_table = "<lock-table>"
+encrypt        = true

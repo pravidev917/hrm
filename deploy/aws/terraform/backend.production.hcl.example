@@ -1,0 +1,9 @@
+# Copy to backend.production.hcl and fill in. Never commit the real file.
+#
+#   terraform init -backend-config=backend.production.hcl
+#   terraform apply -var-file=production.tfvars
+bucket         = "<state-bucket>"
+key            = "hrm/production/terraform.tfstate"
+region         = "ap-south-1"
+dynamodb_table = "<lock-table>"
+encrypt        = true

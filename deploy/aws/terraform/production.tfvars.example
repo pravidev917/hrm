@@ -1,0 +1,32 @@
+# Production stack: public host, real domain and TLS in front (step 6).
+#
+#   terraform init -backend-config=backend.production.hcl
+#   terraform apply -var-file=production.tfvars
+#
+# This stack owns the shared ECR repositories (manage_ecr = true).
+aws_region  = "ap-south-1"
+project     = "hrm"
+environment = "production"
+
+manage_ecr = true
+create_eip = true
+# SSM Session Manager is enough; add a CIDR here only if you really need SSH.
+ssh_cidr  = ""
+# Tighten to the ALB security group or your office IPs before go-live.
+http_cidr = "0.0.0.0/0"
+
+instance_type  = "t3.small"
+root_volume_gb = 30
+
+db_name                  = "hrm"
+db_user                  = "hrm_admin"
+db_engine_version        = "16.4"
+db_instance_class        = "db.t4g.micro"
+db_allocated_storage     = 20
+db_multi_az              = false
+db_backup_retention_days = 7
+db_deletion_protection   = true
+ecr_keep_images          = 15
+
+db_password = ""
+jwt_secret  = ""

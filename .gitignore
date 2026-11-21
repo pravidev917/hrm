@@ -47,5 +47,8 @@ deploy/aws/terraform/*.tfstate.*
 deploy/aws/terraform/crash.log
 deploy/aws/terraform/.terraform.lock.hcl.bak
 # Real values may contain the database password and JWT secret.
-deploy/aws/terraform/terraform.tfvars
+deploy/aws/terraform/*.tfvars
 deploy/aws/terraform/*.auto.tfvars
+deploy/aws/terraform/backend.*.hcl
+# Per-environment runtime files (secrets); only the .example files are tracked.
+deploy/aws/env/*.env

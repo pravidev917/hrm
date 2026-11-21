@@ -5,9 +5,32 @@ variable "aws_region" {
 }
 
 variable "project" {
-  description = "Name prefix for resources (ECR repositories, RDS identifier, tags)."
+  description = "Name prefix for resources (RDS identifier, tags, ECR repositories)."
   type        = string
   default     = "hrm"
+}
+
+variable "environment" {
+  description = "Stack name (staging | production). Every resource is named <project>-<environment> and secrets live under /hrm/<environment>/."
+  type        = string
+  default     = "production"
+
+  validation {
+    condition     = contains(["staging", "production"], var.environment)
+    error_message = "environment must be staging or production."
+  }
+}
+
+variable "manage_ecr" {
+  description = "Create the shared ECR repositories. Keep exactly one stack at true (production) so both environments pull the same images."
+  type        = bool
+  default     = true
+}
+
+variable "create_eip" {
+  description = "Attach an Elastic IP and allow inbound 80/443/8080. Staging sets false: it is reachable only through SSM port forwarding to localhost."
+  type        = bool
+  default     = true
 }
 
 variable "instance_type" {

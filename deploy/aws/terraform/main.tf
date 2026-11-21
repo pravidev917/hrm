@@ -8,12 +8,23 @@
 # Deliberately NOT included: ALB, ACM certificate, Route 53. Add them when a
 # real domain exists (see deploy/aws/README.md, "Adding TLS").
 #
-#   terraform init
-#   terraform plan  -var-file=terraform.tfvars
-#   terraform apply -var-file=terraform.tfvars
+# Two stacks share this code, one per environment:
 #
-# State is local by default. For team use, move it to S3 + DynamoDB locking
-# before the first apply (see README).
+#   staging     no Elastic IP, no public listeners; reachable only through
+#               SSM port forwarding to http://localhost:8080
+#   production  Elastic IP, public 80/443/8080, TLS terminated in front
+#
+#   terraform init  -backend-config=backend.staging.hcl
+#   terraform plan  -var-file=staging.tfvars
+#   terraform apply -var-file=staging.tfvars
+#
+#   terraform init  -backend-config=backend.production.hcl
+#   terraform plan  -var-file=production.tfvars
+#   terraform apply -var-file=production.tfvars
+#
+# Each environment keeps its own state file (see *.hcl.example); the ECR
+# repositories are created once by the production stack (manage_ecr = true) and
+# pulled by both.
 
 terraform {
   required_version = ">= 1.6"
@@ -63,18 +74,24 @@ data "aws_ami" "al2023" {
 }
 
 locals {
-  name = var.project
+  # One stack per environment: hrm-staging-*, hrm-production-*.
+  name = "${var.project}-${var.environment}"
   tags = {
-    Project   = var.project
-    ManagedBy = "terraform"
+    Project     = var.project
+    Environment = var.environment
+    ManagedBy   = "terraform"
   }
+  # Staging passes http_cidr = "" and create_eip = false, so no public listener
+  # exists at all; access goes through SSM port forwarding (see README).
+  http_cidrs = var.http_cidr == "" || !var.create_eip ? [] : [var.http_cidr]
 }
 
 # ---------------------------------------------------------------------------
 # Image registry
 # ---------------------------------------------------------------------------
 resource "aws_ecr_repository" "backend" {
-  name                 = "${local.name}-backend"
+  count                = var.manage_ecr ? 1 : 0
+  name                 = "${var.project}-backend"
   image_tag_mutability = "MUTABLE" # release tags are sha-based; "latest" is a pointer
   force_delete         = false
 
@@ -90,7 +107,8 @@ resource "aws_ecr_repository" "backend" {
 }
 
 resource "aws_ecr_repository" "web" {
-  name                 = "${local.name}-web"
+  count                = var.manage_ecr ? 1 : 0
+  name                 = "${var.project}-web"
   image_tag_mutability = "MUTABLE"
   force_delete         = false
 
@@ -107,7 +125,8 @@ resource "aws_ecr_repository" "web" {
 
 # Keep the repository small: images older than the last N are expired.
 resource "aws_ecr_lifecycle_policy" "backend" {
-  repository = aws_ecr_repository.backend.name
+  count      = var.manage_ecr ? 1 : 0
+  repository = aws_ecr_repository.backend[0].name
   policy = jsonencode({
     rules = [{
       rulePriority = 1
@@ -123,7 +142,8 @@ resource "aws_ecr_lifecycle_policy" "backend" {
 }
 
 resource "aws_ecr_lifecycle_policy" "web" {
-  repository = aws_ecr_repository.web.name
+  count      = var.manage_ecr ? 1 : 0
+  repository = aws_ecr_repository.web[0].name
   policy = jsonencode({
     rules = [{
       rulePriority = 1
@@ -157,28 +177,37 @@ resource "aws_security_group" "app" {
     }
   }
 
-  ingress {
-    description = "HTTP (ALB or direct)"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = [var.http_cidr]
+  dynamic "ingress" {
+    for_each = local.http_cidrs
+    content {
+      description = "HTTP (ALB or direct)"
+      from_port   = 80
+      to_port     = 80
+      protocol    = "tcp"
+      cidr_blocks = [ingress.value]
+    }
   }
 
-  ingress {
-    description = "HTTPS (ALB or host nginx)"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = [var.http_cidr]
+  dynamic "ingress" {
+    for_each = local.http_cidrs
+    content {
+      description = "HTTPS (ALB or host nginx)"
+      from_port   = 443
+      to_port     = 443
+      protocol    = "tcp"
+      cidr_blocks = [ingress.value]
+    }
   }
 
-  ingress {
-    description = "Dockerised web container when the ALB targets the instance"
-    from_port   = 8080
-    to_port     = 8080
-    protocol    = "tcp"
-    cidr_blocks = [var.http_cidr]
+  dynamic "ingress" {
+    for_each = local.http_cidrs
+    content {
+      description = "Dockerised web container when the ALB targets the instance"
+      from_port   = 8080
+      to_port     = 8080
+      protocol    = "tcp"
+      cidr_blocks = [ingress.value]
+    }
   }
 
   egress {
@@ -344,13 +373,15 @@ resource "aws_instance" "app" {
 }
 
 resource "aws_eip" "app" {
+  count  = var.create_eip ? 1 : 0
   domain = "vpc"
   tags   = merge(local.tags, { Name = "${local.name}-app" })
 }
 
 resource "aws_eip_association" "app" {
+  count         = var.create_eip ? 1 : 0
   instance_id   = aws_instance.app.id
-  allocation_id = aws_eip.app.id
+  allocation_id = aws_eip.app[0].id
 }
 
 # ---------------------------------------------------------------------------
@@ -358,14 +389,14 @@ resource "aws_eip_association" "app" {
 # same values live in /etc/hrm/backend.env instead).
 # ---------------------------------------------------------------------------
 resource "aws_ssm_parameter" "db_password" {
-  name  = "/hrm/DB_PASSWORD"
+  name  = "/hrm/${var.environment}/DB_PASSWORD"
   type  = "SecureString"
   value = var.db_password != "" ? var.db_password : random_password.db.result
   tags  = local.tags
 }
 
 resource "aws_ssm_parameter" "jwt_secret" {
-  name  = "/hrm/JWT_SECRET"
+  name  = "/hrm/${var.environment}/JWT_SECRET"
   type  = "SecureString"
   value = var.jwt_secret != "" ? var.jwt_secret : random_password.jwt.result
   tags  = local.tags
