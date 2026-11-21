@@ -23,13 +23,31 @@ DB_PORT="${DB_PORT:-5432}"
 DB_NAME="${DB_NAME:?set DB_NAME}"
 DB_USER="${DB_USER:?set DB_USER}"
 DB_PASSWORD="${DB_PASSWORD:?set DB_PASSWORD}"
-BASELINE="${BASELINE_SQL:-$(cd "$(dirname "$0")/../.." && pwd)/docs/migrations/V1__baseline_schema.sql}"
+MIGRATIONS_DIR="${MIGRATIONS_DIR:-$(cd "$(dirname "$0")/../.." && pwd)/docs/migrations}"
+
+# Either one explicit file (BASELINE_SQL) or every V*.sql in the migrations
+# directory, applied in version order - a fresh database needs the baseline plus
+# all later migrations, otherwise DB_DDL_AUTO=validate rejects the schema.
+if [ -n "${BASELINE_SQL:-}" ]; then
+  migrations=("$BASELINE_SQL")
+else
+  shopt -s nullglob
+  migrations=("$MIGRATIONS_DIR"/V*.sql)
+  shopt -u nullglob
+fi
+
+if [[ ${#migrations[@]} -gt 1 ]] && command -v sort >/dev/null; then
+  mapfile -t migrations < <(printf '%s\n' "${migrations[@]}" | sort -V)
+fi
 
 die() { printf 'ERROR: %s\n' "$*" >&2; exit 1; }
 log() { printf '[db-bootstrap] %s\n' "$*"; }
 
 command -v psql >/dev/null || die "psql not found (dnf install postgresql16)"
-[ -f "$BASELINE" ] || die "baseline schema not found: $BASELINE"
+[[ ${#migrations[@]} -gt 0 ]] || die "no V*.sql migrations found in $MIGRATIONS_DIR"
+for m in "${migrations[@]}"; do
+  [ -f "$m" ] || die "migration not found: $m"
+done
 [ -n "$DB_PASSWORD" ] || die "DB_PASSWORD must not be empty"
 
 passfile="$(mktemp "${TMPDIR:-/tmp}/hrm-dbboot.XXXXXX")"
@@ -51,9 +69,11 @@ if [ "$existing" != "0" ]; then
   die "public schema already has ${existing} object(s) - refusing to apply the baseline"
 fi
 
-log "applying $(basename "$BASELINE")"
-psql -v ON_ERROR_STOP=1 -q -f "$BASELINE" || die "baseline failed (transaction rolled back)"
+for m in "${migrations[@]}"; do
+  log "applying $(basename "$m")"
+  psql -v ON_ERROR_STOP=1 -q -f "$m" || die "$(basename "$m") failed - public schema left as it was"
+done
 
 tables="$(psql -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';")"
-log "done - ${tables} tables in ${DB_NAME}.public"
+log "done - ${#migrations[@]} migration(s), ${tables} tables in ${DB_NAME}.public"
 log "next: set DEFAULT_ADMIN_EMAIL / DEFAULT_ADMIN_PASSWORD in /etc/hrm/backend.env for the first start"

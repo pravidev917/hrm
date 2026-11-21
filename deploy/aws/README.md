@@ -76,8 +76,11 @@ scp deploy/aws/db-bootstrap.sh ec2-user@<host>:/tmp/
 ssh ec2-user@<host> 'sudo install -m 0755 /tmp/db-bootstrap.sh /opt/hrm/'
 ```
 
-The script refuses to run against a non-empty schema and never puts the password
-on a command line.
+The script applies **every** `docs/migrations/V*.sql` in version order (override
+with `MIGRATIONS_DIR=` or a single file with `BASELINE_SQL=`), refuses to run
+against a non-empty schema, and never puts the password on a command line.
+Verified against a real PostgreSQL 16 container: V1–V5 apply clean in order and
+a second run stops before touching anything.
 
 ### Write the runtime environment file
 
