@@ -1,7 +1,11 @@
 import axios from 'axios'
 
 // Vite env vars are public (bundled into the browser). Never put secrets here.
-const baseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080'
+//
+// Default is same-origin: nginx serves the app and proxies /api to Spring Boot,
+// and `npm run dev` proxies /api to localhost:8080 (see vite.config.js). Set
+// VITE_API_BASE_URL only when the API really lives on another origin.
+const baseURL = import.meta.env.VITE_API_BASE_URL ?? ''
 
 // The backend authenticates with an HttpOnly "HRM_AUTH" cookie, so the browser
 // must send credentials. The JWT is never readable from JavaScript.
