@@ -95,7 +95,9 @@ public class SecurityConfig {
                 .requestMatchers(
                     "/api/auth/admin/login",
                     "/api/auth/employee/login",
-                    "/api/auth/logout"
+                    "/api/auth/logout",
+                    // Readiness probe: status word only, no tenant data.
+                    "/api/health"
                 ).permitAll()
 
                 .requestMatchers("/api/auth/me").authenticated()
