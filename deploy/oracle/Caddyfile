@@ -1,0 +1,36 @@
+# Caddy on the Oracle VM: one public origin, automatic Let's Encrypt certificate.
+#
+# ${API_DOMAIN} and ${ACME_EMAIL} come from /opt/hrm/deploy.env through the
+# compose environment. Caddy listens on 80 only to answer the ACME challenge and
+# to redirect plain HTTP to HTTPS.
+#
+# CORS and the auth cookie are NOT handled here: the Spring Boot app sets both
+# (CORS_ALLOWED_ORIGINS / COOKIE_SAME_SITE=None / COOKIE_SECURE=true in
+# /etc/hrm/backend.env). Caddy only terminates TLS and forwards.
+{
+	email {$ACME_EMAIL}
+	# No admin API on the public interface.
+	admin off
+}
+
+{$API_DOMAIN} {
+	encode zstd gzip
+
+	# Caddy already sets X-Forwarded-For and X-Forwarded-Proto, which the backend
+	# reads (server.forward-headers-strategy=framework) to throttle failed logins
+	# per real client address rather than per proxy address.
+	reverse_proxy backend:8080
+
+	header {
+		# The API only ever returns JSON.
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		X-Frame-Options DENY
+		-Server
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}
