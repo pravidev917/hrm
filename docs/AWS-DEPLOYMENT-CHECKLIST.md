@@ -27,14 +27,35 @@ This branch carries the same host-deploy tree **plus** the AWS layer
 (`deploy/aws/**`, ECR/ECS, Terraform), the responsive UI, the same-origin API
 change, the health probe and `.gitattributes`.
 
-- [ ] Rebase or merge this branch onto current `origin/develop` (`deploy/scripts/*`,
-      `backend/Dockerfile`, `docker-compose.yml` and `docs/PRODUCTION-DEPLOYMENT.md`
-      are the overlapping files; the deploy scripts differ only by file mode).
-- [ ] Resolve the two Docker layouts into one: keep the AWS images
-      (`backend/Dockerfile` + `frontend/Dockerfile` with `BACKEND_UPSTREAM`) and
-      drop the `db/Dockerfile` variant, or document which one production uses.
-- [ ] Re-run `./mvnw -B -o verify`, `npm run lint`, `npm run build` after the merge.
+A dry-run integration (`git merge-tree origin/develop feature/mobile-responsive`)
+produces **12 conflicts**, all mechanical except one:
+
+| File | Type | Resolution |
+|---|---|---|
+| `backend/Dockerfile`, `frontend/Dockerfile`, `backend/.dockerignore`, `frontend/.dockerignore` | add/add | keep this branch's version (nginx `BACKEND_UPSTREAM` image) |
+| `docker-compose.yml` | add/add | keep this branch's version, then add develop's `db/Dockerfile` service only if it is still wanted |
+| `docs/PRODUCTION-DEPLOYMENT.md`, `docs/migrations/README.md` | add/add | this branch's version (superset), keep develop's V2…V5 files |
+| `.env.example`, `.gitignore`, `backend/src/main/resources/application.properties`, `frontend/vite.config.js` | content | take this branch, re-add develop's new keys/vars |
+| `frontend/src/index.css` | content | **the real merge**: develop added WFH/reporting UI, this branch added the responsive layer — keep both blocks, then re-screen at 375 px |
+
+`deploy/scripts/*` merge cleanly (identical content; develop only adds the
+executable bit, which this branch also sets).
+
+- [ ] Rebase or merge this branch onto current `origin/develop` and resolve the
+      twelve files above in the listed order, `index.css` last.
+- [ ] Decide the single Docker layout: the AWS images in this branch
+      (`backend/Dockerfile` + `frontend/Dockerfile`) or develop's `db/Dockerfile`
+      variant — not both in one deployment.
+- [ ] Re-run `./mvnw -B -o verify`, `npm run lint`, `npm run build` after the merge,
+      then re-check the responsive matrix (375 px, 768 px, 1280 px) because
+      develop's new screens were never part of that run.
 - [ ] Keep `docs/migrations/V2…V5` — the RDS bootstrap now applies them in order.
+
+If resolving in a branch history matters more than preserving these commits, the
+cheaper alternative is to cherry-pick only the AWS layer onto `develop`
+(`.github/workflows/docker-images.yml`, `.github/workflows/deploy-aws.yml`,
+`deploy/aws/**`, `docs/AWS-DEPLOYMENT-CHECKLIST.md`, `docs/PRODUCTION-DEPLOYMENT.md`,
+`.gitattributes`) and re-apply the responsive CSS on top of develop's UI.
 
 **Done when** one branch contains features + schema V1…V5 + the AWS layer and CI
 is green on it. Do not provision AWS from a branch missing V2…V5: the backend
