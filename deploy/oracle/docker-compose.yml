@@ -1,0 +1,70 @@
+# HRM backend on an Oracle Cloud VM. The frontend lives on Vercel and the
+# database lives on Supabase, so this host runs exactly two containers:
+#
+#   backend   Spring Boot, pulled from GHCR (ghcr.io/<owner>/hrm-<repo>:<tag>)
+#   caddy     automatic HTTPS for https://${API_DOMAIN} -> backend:8080
+#
+# The browser talks to this host cross-origin (Vercel origin -> API origin), so
+# the backend needs SameSite=None; Secure cookies and a CORS allow-list that
+# names the Vercel domain. That is configured in /etc/hrm/backend.env, not here.
+#
+#   sudo IMAGE_TAG=production-abc1234 docker compose -f /opt/hrm/docker-compose.yml up -d
+#
+# Ports: 80 and 443 must be open both in the OCI security list and in the
+# instance firewall. Nothing else is published - the backend is only reachable
+# through Caddy.
+
+name: hrm
+
+services:
+  backend:
+    image: ${IMAGE_REGISTRY:?set IMAGE_REGISTRY (ghcr.io/<owner>)}/hrm-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file:
+      # Absolute path in production; HRM_ENV_FILE exists so `docker compose config`
+      # can be validated anywhere without touching /etc.
+      - ${HRM_ENV_FILE:-/etc/hrm/backend.env}
+    environment:
+      JAVA_OPTS: ${JAVA_OPTS:--XX:MaxRAMPercentage=70 -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError}
+      TZ: ${APP_TIMEZONE:-Asia/Kolkata}
+    expose:
+      - "8080"
+    # The image healthcheck curls /api/health, which answers 200 only when the
+    # Supabase connection works, so a bad DB password fails the deploy instead
+    # of serving 500s.
+    deploy:
+      resources:
+        limits:
+          memory: ${BACKEND_MEMORY:-1500m}
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?set API_DOMAIN (e.g. api.example.com)}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  caddy_data:
+  caddy_config:

@@ -1,12 +1,20 @@
 #!/usr/bin/env bash
-# Apply the HRM baseline schema to a fresh Amazon RDS PostgreSQL instance.
+# Apply the HRM schema (V1..V5) to a fresh Supabase PostgreSQL database.
 #
-# Run from the EC2 host (or any machine that can reach RDS) once, before the
-# first backend start:
+# Run once, before the first backend start, from any machine that can reach the
+# database - your laptop or the Oracle VM:
 #
-#   DB_HOST=hrm.xxxxx.ap-south-1.rds.amazonaws.com \
-#   DB_PORT=5432 DB_NAME=hrm DB_USER=hrm_admin DB_PASSWORD='...' \
-#   ./deploy/aws/db-bootstrap.sh
+#   DB_HOST=aws-0-ap-south-1.pooler.supabase.com \
+#   DB_PORT=5432 DB_NAME=postgres DB_USER=postgres.<project-ref> \
+#   DB_PASSWORD='<supabase-db-password>' \
+#   ./deploy/oracle/db-bootstrap.sh
+#
+# Supabase details:
+#   * prefer the SESSION pooler on port 5432 (IPv4). The direct host
+#     db.<ref>.supabase.co is IPv6-only on new projects and also needs TLS;
+#   * transaction mode (port 6543) supports neither DDL nor prepared statements,
+#     so it cannot run these migrations;
+#   * TLS is mandatory - DB_SSLMODE defaults to require.
 #
 # Security notes:
 #   * the password is never passed on the command line - it goes into a 0600
@@ -18,11 +26,12 @@
 
 set -Eeuo pipefail
 
-DB_HOST="${DB_HOST:?set DB_HOST (RDS endpoint)}"
+DB_HOST="${DB_HOST:?set DB_HOST (Supabase pooler host)}"
 DB_PORT="${DB_PORT:-5432}"
-DB_NAME="${DB_NAME:?set DB_NAME}"
-DB_USER="${DB_USER:?set DB_USER}"
+DB_NAME="${DB_NAME:-postgres}"
+DB_USER="${DB_USER:?set DB_USER (postgres.<project-ref> on the pooler)}"
 DB_PASSWORD="${DB_PASSWORD:?set DB_PASSWORD}"
+DB_SSLMODE="${DB_SSLMODE:-require}"
 MIGRATIONS_DIR="${MIGRATIONS_DIR:-$(cd "$(dirname "$0")/../.." && pwd)/docs/migrations}"
 
 # Either one explicit file (BASELINE_SQL) or every V*.sql in the migrations
@@ -60,9 +69,11 @@ chmod 600 "$passfile"
 export PGPASSFILE="$passfile"
 export PGHOST="$DB_HOST" PGPORT="$DB_PORT" PGDATABASE="$DB_NAME" PGUSER="$DB_USER"
 export PGCONNECT_TIMEOUT=10
+# Supabase refuses plaintext connections; require is enough (no client cert).
+export PGSSLMODE="$DB_SSLMODE"
 
 log "checking connectivity to ${DB_HOST}:${DB_PORT}/${DB_NAME}"
-psql -v ON_ERROR_STOP=1 -Atc 'SELECT current_database();' >/dev/null || die "cannot connect (check the RDS security group and password)"
+psql -v ON_ERROR_STOP=1 -Atc 'SELECT current_database();' >/dev/null || die "cannot connect (check the pooler host, user and password; an IPv6-only direct host fails here)"
 
 existing="$(psql -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type IN ('BASE TABLE','VIEW');")"
 if [ "$existing" != "0" ]; then
@@ -76,4 +87,5 @@ done
 
 tables="$(psql -v ON_ERROR_STOP=1 -Atc "SELECT count(*) FROM information_schema.tables WHERE table_schema='public' AND table_type='BASE TABLE';")"
 log "done - ${#migrations[@]} migration(s), ${tables} tables in ${DB_NAME}.public"
-log "next: set DEFAULT_ADMIN_EMAIL / DEFAULT_ADMIN_PASSWORD in /etc/hrm/backend.env for the first start"
+log "next: point DB_URL at the same host (add ?sslmode=require), set"
+log "      DEFAULT_ADMIN_EMAIL / DEFAULT_ADMIN_PASSWORD, then start the backend"
