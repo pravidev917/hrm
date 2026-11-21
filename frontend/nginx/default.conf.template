@@ -1,0 +1,92 @@
+# HRM web container — nginx front door.
+#
+# Rendered by the official nginx image at startup: every ${BACKEND_UPSTREAM} is
+# replaced from the environment (NGINX_ENVSUBST_FILTER limits substitution to
+# that one name, so nginx's own $host / $uri variables are left alone).
+#
+# Same-origin model: the SPA is served from this server and /api is proxied to
+# the backend, so the auth cookie is first-party and no CORS is exercised.
+
+server_tokens off;
+
+limit_req_zone $binary_remote_addr zone=hrm_login:10m rate=10r/m;
+
+# BACKEND_UPSTREAM is host:port (upstream blocks reject a scheme).
+upstream hrm_backend {
+    server ${BACKEND_UPSTREAM};
+    keepalive 16;
+}
+
+server {
+    listen 80;
+    server_name _;
+
+    # TLS is terminated in front of this container (ALB, CloudFront or a host
+    # nginx with certbot). Keep X-Forwarded-Proto intact for the backend.
+    root /usr/share/nginx/html;
+    index index.html;
+    client_max_body_size 2m;
+
+    add_header X-Content-Type-Options nosniff always;
+    add_header X-Frame-Options DENY always;
+    add_header Referrer-Policy no-referrer always;
+
+    # Proxy headers apply to every proxied location below. Host must be the
+    # real hostname: Tomcat rejects a Host header containing an underscore
+    # (nginx's default would be the upstream name, hrm_backend).
+    proxy_http_version 1.1;
+    proxy_set_header Connection "";
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    # Container/organisation health probe (no upstream involved).
+    location = /healthz {
+        access_log off;
+        add_header Content-Type text/plain;
+        return 200 "ok\n";
+    }
+
+    # Versioned assets are content-hashed by Vite: cache them forever.
+    location /assets/ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+        try_files $uri =404;
+    }
+
+    # API: proxy to Spring Boot.
+    location /api/ {
+        proxy_pass http://hrm_backend;
+        proxy_read_timeout 30s;
+    }
+
+    # Readiness probe: keep it out of access logs.
+    location = /api/health {
+        access_log off;
+        proxy_pass http://hrm_backend;
+        proxy_read_timeout 5s;
+    }
+
+    # Second, cheap layer of sign-in abuse protection (the application also
+    # locks out after N failures; this stops the flood earlier).
+    location = /api/auth/admin/login {
+        limit_req zone=hrm_login burst=5 nodelay;
+        proxy_pass http://hrm_backend;
+    }
+
+    location = /api/auth/employee/login {
+        limit_req zone=hrm_login burst=5 nodelay;
+        proxy_pass http://hrm_backend;
+    }
+
+    # SPA routes fall back to index.html and are never cached.
+    location / {
+        try_files $uri $uri/ /index.html;
+        add_header Cache-Control "no-store";
+    }
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+    gzip_min_length 1024;
+}

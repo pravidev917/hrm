@@ -1,0 +1,21 @@
+# Build context hygiene for the backend image.
+# Keeping target/ and the IDE files out makes the build context small and the
+# dependency layer cache stable.
+
+target/
+!.mvn/wrapper/maven-wrapper.jar
+.mvn/wrapper/maven-wrapper.properties
+!.mvn/wrapper/maven-wrapper.properties
+
+.git
+.gitignore
+**/.DS_Store
+**/*.log
+**/surefire-reports
+**/*.jar.original
+
+.idea/
+*.iml
+.vscode/
+Dockerfile
+.dockerignore
