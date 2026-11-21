@@ -1,63 +1,105 @@
 name: Deploy to AWS
 
-# Ships an already-published image tag to the EC2 Docker host and rolls back
-# automatically when the health check fails (deploy/aws/deploy-remote.sh).
+# Ships an already-published image tag to one of the two AWS stacks.
 #
-# Required configuration
-#   secrets: AWS_DEPLOY_ROLE_ARN, EC2_HOST, EC2_USER, EC2_SSH_KEY
-#   vars:    AWS_REGION
-#   environment "production" (add required reviewers to gate the deploy)
+#   develop  -> staging     automatic after a successful "Docker images" run
+#   main     -> production  automatic, but the job waits for the reviewers
+#                           configured on the "production" GitHub Environment
+#   manual   -> either      workflow_dispatch (approval still applies)
 #
-# Trigger: manually, or automatically after "Docker images" succeeds on main.
+# Per-environment Git configuration (same names in each Environment, different
+# values): secrets EC2_HOST, EC2_USER, EC2_SSH_KEY, EC2_INSTANCE_ID.
+# AWS_DEPLOY_ROLE_ARN and the AWS_REGION variable are repository-level.
+#
+# A staging tag (staging-*) can never be deployed to production and vice versa:
+# the guard step rejects a mismatched prefix before anything is touched.
 
 on:
   workflow_dispatch:
     inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: staging
+        type: choice
+        options: [staging, production]
       image_tag:
-        description: 'Image tag to deploy (defaults to sha-<short sha of this commit>)'
+        description: 'Image tag (defaults to <environment>-<short sha>)'
         required: false
         type: string
   workflow_run:
     workflows: ['Docker images']
     types: [completed]
-    branches: [main]
 
 permissions:
   contents: read
   id-token: write
 
-concurrency:
-  group: hrm-deploy-production
-  cancel-in-progress: false
-
-env:
-  APP_DIR: /opt/hrm
-
 jobs:
-  deploy:
-    name: Deploy to EC2
+  resolve:
+    name: Resolve target
     runs-on: ubuntu-latest
-    environment: production
     if: >-
       github.event_name == 'workflow_dispatch' ||
       github.event.workflow_run.conclusion == 'success'
+    outputs:
+      environment: ${{ steps.r.outputs.environment }}
+      image_tag: ${{ steps.r.outputs.image_tag }}
+
+    steps:
+      - id: r
+        env:
+          EVENT: ${{ github.event_name }}
+          RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          WANTED: ${{ inputs.environment }}
+          WANTED_TAG: ${{ inputs.image_tag }}
+        run: |
+          set -euo pipefail
+          sha="${RUN_SHA:-${{ github.sha }}}"
+          short="$(printf '%s' "$sha" | cut -c1-7)"
+
+          if [ "$EVENT" = "workflow_run" ]; then
+            case "$RUN_BRANCH" in
+              develop) env=staging ;;
+              main)    env=production ;;
+              *) echo "branch '$RUN_BRANCH' does not deploy (only develop/main)"; exit 0 ;;
+            esac
+          else
+            env="${WANTED:-staging}"
+          fi
+
+          tag="${WANTED_TAG:-${env}-${short}}"
+          case "$env:$tag" in
+            staging:staging-*)       : ;;
+            production:production-*) : ;;
+            production:v[0-9]*)      : ;;   # allow deploying a release tag
+            *)
+              echo "::error::tag '$tag' does not belong to '$env' (staging-* for staging, production-*/v* for production)"
+              exit 1
+              ;;
+          esac
+
+          echo "environment=$env" >> "$GITHUB_OUTPUT"
+          echo "image_tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "target: $env ($tag)"
+
+  deploy:
+    name: Deploy ${{ needs.resolve.outputs.image_tag }} to ${{ needs.resolve.outputs.environment }}
+    needs: resolve
+    if: needs.resolve.outputs.environment != ''
+    runs-on: ubuntu-latest
+    # The GitHub Environment supplies the host/ssh secrets and, for production,
+    # the required reviewers that hold the job until someone approves.
+    environment:
+      name: ${{ needs.resolve.outputs.environment }}
+
+    concurrency:
+      group: hrm-deploy-${{ needs.resolve.outputs.environment }}
+      cancel-in-progress: false
 
     steps:
       - uses: actions/checkout@v4
-
-      - name: Resolve image tag
-        id: tag
-        run: |
-          set -euo pipefail
-          tag="${{ inputs.image_tag }}"
-          if [ -z "$tag" ]; then
-            tag="sha-$(echo '${{ github.sha }}' | cut -c1-7)"
-          fi
-          case "$tag" in
-            *[!A-Za-z0-9._-]*) echo "invalid image tag: $tag" >&2; exit 1 ;;
-          esac
-          echo "value=$tag" >> "$GITHUB_OUTPUT"
-          echo "deploying tag: $tag"
 
       - uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -72,85 +114,96 @@ jobs:
           account="$(aws sts get-caller-identity --query Account --output text)"
           echo "registry=$account.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com" >> "$GITHUB_OUTPUT"
 
-      - name: Check the image tag exists
+      - name: Both images must exist in ECR
         env:
-          REGISTRY: ${{ steps.ecr.outputs.registry }}
-          TAG: ${{ steps.tag.outputs.value }}
+          TAG: ${{ needs.resolve.outputs.image_tag }}
         run: |
           set -euo pipefail
-          if ! aws ecr describe-images --repository-name hrm-backend \
-               --image-ids imageTag="$TAG" >/dev/null 2>&1; then
-            echo "hrm-backend:$TAG is not in ECR - did the images workflow run?" >&2
-            exit 1
-          fi
-          if ! aws ecr describe-images --repository-name hrm-web \
-               --image-ids imageTag="$TAG" >/dev/null 2>&1; then
-            echo "hrm-web:$TAG is not in ECR" >&2
-            exit 1
-          fi
+          for repo in hrm-backend hrm-web; do
+            if ! aws ecr describe-images --repository-name "$repo" \
+                 --image-ids imageTag="$TAG" >/dev/null 2>&1; then
+              echo "::error::$repo:$TAG is not in ECR - did the images workflow finish?"
+              exit 1
+            fi
+            echo "found $repo:$TAG"
+          done
 
       - name: Prepare SSH key
         env:
           SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          HOST: ${{ secrets.EC2_HOST }}
         run: |
           set -euo pipefail
           install -d -m 700 ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/hrm_deploy
           chmod 600 ~/.ssh/hrm_deploy
-          # Pin the host key: tofu only after the fingerprint has been checked.
-          ssh-keyscan -H "${{ secrets.EC2_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
           chmod 600 ~/.ssh/known_hosts
 
-      - name: Upload compose file and deploy script
+      - name: Upload compose file and scripts
         env:
           HOST: ${{ secrets.EC2_HOST }}
           USER_NAME: ${{ secrets.EC2_USER }}
         run: |
           set -euo pipefail
-          scp -i ~/.ssh/hrm_deploy \
-            deploy/aws/docker-compose.yml \
-            "$USER_NAME@$HOST:~/hrm-docker-compose.yml"
-          scp -i ~/.ssh/hrm_deploy \
-            deploy/aws/deploy-remote.sh \
-            "$USER_NAME@$HOST:~/hrm-deploy-remote.sh"
-          scp -i ~/.ssh/hrm_deploy \
-            deploy/aws/db-bootstrap.sh \
-            "$USER_NAME@$HOST:~/hrm-db-bootstrap.sh"
+          scp -i ~/.ssh/hrm_deploy deploy/aws/docker-compose.yml "$USER_NAME@$HOST:~/hrm-docker-compose.yml"
+          scp -i ~/.ssh/hrm_deploy deploy/aws/deploy-remote.sh "$USER_NAME@$HOST:~/hrm-deploy-remote.sh"
+          scp -i ~/.ssh/hrm_deploy deploy/aws/db-bootstrap.sh "$USER_NAME@$HOST:~/hrm-db-bootstrap.sh"
           ssh -i ~/.ssh/hrm_deploy "$USER_NAME@$HOST" '
             set -euo pipefail
             sudo install -m 0755 ~/hrm-deploy-remote.sh /opt/hrm/deploy-remote.sh
             sudo install -m 0755 ~/hrm-db-bootstrap.sh /opt/hrm/db-bootstrap.sh
             sudo install -m 0644 ~/hrm-docker-compose.yml /opt/hrm/docker-compose.yml
             rm -f ~/hrm-deploy-remote.sh ~/hrm-db-bootstrap.sh ~/hrm-docker-compose.yml
+            test -f /etc/hrm/backend.env || { echo "/etc/hrm/backend.env is missing" >&2; exit 1; }
           '
 
-      - name: Deploy
+      - name: Deploy (on-host health gate, automatic rollback)
         env:
           HOST: ${{ secrets.EC2_HOST }}
           USER_NAME: ${{ secrets.EC2_USER }}
           REGISTRY: ${{ steps.ecr.outputs.registry }}
-          TAG: ${{ steps.tag.outputs.value }}
+          TAG: ${{ needs.resolve.outputs.image_tag }}
         run: |
           set -euo pipefail
           ssh -i ~/.ssh/hrm_deploy "$USER_NAME@$HOST" \
             "sudo IMAGE_TAG='$TAG' ECR_REGISTRY='$REGISTRY' /opt/hrm/deploy-remote.sh"
 
-      - name: Verify the public endpoint
+      - name: Verify production over the public origin
+        if: needs.resolve.outputs.environment == 'production'
         env:
+          URL: ${{ vars.PUBLIC_HEALTH_URL }}
           HOST: ${{ secrets.EC2_HOST }}
         run: |
           set -euo pipefail
+          target="${URL:-http://$HOST/api/health}"
           for attempt in $(seq 1 20); do
-            code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "http://$HOST/api/health" || true)"
-            if [ "$code" = "200" ]; then
-              echo "public health check: 200"
-              exit 0
-            fi
+            code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$target" || true)"
+            if [ "$code" = "200" ]; then echo "$target -> 200"; exit 0; fi
             echo "attempt $attempt: $code"
             sleep 6
           done
-          echo "public health check did not return 200" >&2
+          echo "::error::$target did not return 200"
           exit 1
+
+      - name: Verify staging from inside the instance (no public port)
+        if: needs.resolve.outputs.environment == 'staging'
+        env:
+          INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
+        run: |
+          set -euo pipefail
+          cmd_id="$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --parameters 'commands=["curl -fsS --max-time 10 http://127.0.0.1:8080/api/health"]' \
+            --query 'Command.CommandId' --output text)"
+          aws ssm wait command-executed --command-id "$cmd_id" --instance-id "$INSTANCE_ID" || true
+          status="$(aws ssm get-command-invocation --command-id "$cmd_id" --instance-id "$INSTANCE_ID" --query 'Status' --output text)"
+          echo "ssm command status: $status"
+          if [ "$status" != "Success" ]; then
+            aws ssm get-command-invocation --command-id "$cmd_id" --instance-id "$INSTANCE_ID" --query 'StandardErrorContent' --output text
+            exit 1
+          fi
 
       - name: Clean up the key
         if: always()

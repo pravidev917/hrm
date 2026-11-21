@@ -1,17 +1,18 @@
 name: Docker images
 
-# Builds the two deployable images and publishes them:
-#   ghcr.io/<owner>/<repo>-backend[:tag]   always (public registry, GITHUB_TOKEN)
-#   <acct>.dkr.ecr.<region>.amazonaws.com/hrm-backend[:tag]  when AWS_REGION is set
+# Builds the two deployable images and publishes them with environment-specific
+# tags, so a staging build can never be mistaken for a production release:
 #
-# The ECR half authenticates with GitHub OIDC, so no long-lived AWS keys are
-# stored in the repository. Configure once:
-#   - repository variable  AWS_REGION
-#   - repository secret    AWS_DEPLOY_ROLE_ARN   (role trusting this repo's OIDC)
+#   develop  -> ghcr/ECR  staging-<short-sha>, staging-latest, sha-<short-sha>
+#   main     -> ghcr/ECR  production-<short-sha>, production-latest, sha-<short-sha>
+#   v1.2.3   -> ghcr/ECR  1.2.3, v1.2.3, sha-<short-sha>
+#
+# ECR publishing needs the repository variable AWS_REGION and the secret
+# AWS_DEPLOY_ROLE_ARN (GitHub OIDC, no long-lived AWS keys).
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
     tags: ['v*.*.*']
   workflow_dispatch:
 
@@ -60,10 +61,13 @@ jobs:
         with:
           images: ${{ env.GHCR_PREFIX }}/${{ steps.repo.outputs.lower }}-${{ matrix.image }}
           tags: |
-            type=ref,event=branch
-            type=ref,event=tag
             type=sha,prefix=sha-,format=short
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=staging-,format=short,enable=${{ github.ref == 'refs/heads/develop' }}
+            type=sha,prefix=production-,format=short,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=staging-latest,enable=${{ github.ref == 'refs/heads/develop' }}
+            type=raw,value=production-latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=semver,pattern={{version}}
+            type=ref,event=tag
 
       - uses: docker/build-push-action@v6
         with:
@@ -72,6 +76,9 @@ jobs:
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ github.ref_name }}
+            VCS_REF=${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
           provenance: true
@@ -80,7 +87,6 @@ jobs:
   ecr:
     name: Publish to ECR (${{ matrix.image }})
     runs-on: ubuntu-latest
-    # Only runs when the repository is wired to AWS.
     if: vars.AWS_REGION != ''
     strategy:
       fail-fast: false
@@ -113,8 +119,12 @@ jobs:
           images: ${{ steps.ecr.outputs.registry }}/${{ matrix.ecr_repo }}
           tags: |
             type=sha,prefix=sha-,format=short
+            type=sha,prefix=staging-,format=short,enable=${{ github.ref == 'refs/heads/develop' }}
+            type=sha,prefix=production-,format=short,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=staging-latest,enable=${{ github.ref == 'refs/heads/develop' }}
+            type=raw,value=production-latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=semver,pattern={{version}}
             type=ref,event=tag
-            type=raw,value=latest,enable={{is_default_branch}}
 
       - uses: docker/build-push-action@v6
         with:
@@ -123,5 +133,8 @@ jobs:
           platforms: linux/amd64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ github.ref_name }}
+            VCS_REF=${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
