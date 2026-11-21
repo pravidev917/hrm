@@ -36,10 +36,15 @@ log() { printf '[deploy] %s\n' "$*"; }
 [ -f "$ENV_FILE" ] || die "missing env file: $ENV_FILE" 1
 command -v docker >/dev/null || die "docker is not installed" 1
 
-# deploy.env holds non-secret settings (registry, port, region).
+# deploy.env holds non-secret settings (registry, port, bind address, region).
+# set -a so they are exported: docker compose interpolates ${WEB_BIND}/${WEB_PORT}
+# from this process environment, and an unexported WEB_BIND would silently fall
+# back to the compose default 0.0.0.0 - a public listener on staging.
 if [ -f "$DEPLOY_ENV" ]; then
+  set -a
   # shellcheck disable=SC1090
   . "$DEPLOY_ENV"
+  set +a
 fi
 
 : "${IMAGE_TAG:?set IMAGE_TAG}"
