@@ -1,0 +1,26 @@
+# Copy to terraform.tfvars and edit. Never commit real secrets.
+aws_region  = "ap-south-1"
+project     = "hrm"
+
+instance_type  = "t3.small"
+root_volume_gb = 30
+
+# Leave empty to use SSM Session Manager only (no inbound SSH).
+ssh_cidr  = ""
+# Tighten this to the ALB or your own IPs once the load balancer exists.
+http_cidr = "0.0.0.0/0"
+
+db_name                 = "hrm"
+db_user                 = "hrm_admin"
+db_engine_version       = "16.4"
+db_instance_class       = "db.t4g.micro"
+db_allocated_storage    = 20
+db_multi_az             = false
+db_backup_retention_days = 7
+db_deletion_protection  = true
+
+ecr_keep_images = 15
+
+# Leave empty to let Terraform generate strong values (stored in state and SSM).
+db_password = ""
+jwt_secret  = ""

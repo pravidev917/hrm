@@ -1,0 +1,54 @@
+{
+  "family": "hrm-backend",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "runtimePlatform": { "cpuArchitecture": "X86_64", "operatingSystemFamily": "LINUX" },
+  "executionRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/hrm-ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::<ACCOUNT_ID>:role/hrm-ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "backend",
+      "image": "<ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/hrm-backend:<TAG>",
+      "essential": true,
+      "portMappings": [{ "containerPort": 8080, "protocol": "tcp" }],
+      "environment": [
+        { "name": "SERVER_PORT", "value": "8080" },
+        { "name": "DB_DDL_AUTO", "value": "validate" },
+        { "name": "DB_POOL_SIZE", "value": "8" },
+        { "name": "APP_TIMEZONE", "value": "Asia/Kolkata" },
+        { "name": "COOKIE_SECURE", "value": "true" },
+        { "name": "COOKIE_SAME_SITE", "value": "Lax" },
+        { "name": "CORS_ALLOWED_ORIGINS", "value": "https://<DOMAIN>" },
+        { "name": "LOGIN_MAX_ATTEMPTS", "value": "5" },
+        { "name": "LOGIN_LOCK_MINUTES", "value": "15" },
+        { "name": "LOG_LEVEL_ROOT", "value": "INFO" },
+        { "name": "LOG_LEVEL_APP", "value": "INFO" },
+        { "name": "TZ", "value": "Asia/Kolkata" }
+      ],
+      "secrets": [
+        { "name": "DB_URL", "valueFrom": "arn:aws:ssm:<REGION>:<ACCOUNT_ID>:parameter/hrm/DB_URL" },
+        { "name": "DB_USERNAME", "valueFrom": "arn:aws:ssm:<REGION>:<ACCOUNT_ID>:parameter/hrm/DB_USERNAME" },
+        { "name": "DB_PASSWORD", "valueFrom": "arn:aws:ssm:<REGION>:<ACCOUNT_ID>:parameter/hrm/DB_PASSWORD" },
+        { "name": "JWT_SECRET", "valueFrom": "arn:aws:ssm:<REGION>:<ACCOUNT_ID>:parameter/hrm/JWT_SECRET" }
+      ],
+      "healthCheck": {
+        "command": ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/api/health || exit 1"],
+        "interval": 30,
+        "timeout": 5,
+        "retries": 3,
+        "startPeriod": 60
+      },
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/hrm-backend",
+          "awslogs-region": "<REGION>",
+          "awslogs-stream-prefix": "backend"
+        }
+      },
+      "stopTimeout": 30
+    }
+  ]
+}

@@ -1,0 +1,69 @@
+# HRM on a single EC2 instance, database on RDS.
+#
+# Images come from ECR (built and pushed by .github/workflows/docker-images.yml):
+#   ${ECR_REGISTRY}/hrm-backend:${IMAGE_TAG}
+#   ${ECR_REGISTRY}/hrm-web:${IMAGE_TAG}
+#
+# The backend reads /etc/hrm/backend.env (root:hrm 0640) — the same file the
+# systemd deployment uses, so DB_URL, JWT_SECRET and cookie settings have exactly
+# one source of truth. In this file DB_URL points at the RDS endpoint, not at
+# 127.0.0.1.
+#
+#   sudo IMAGE_TAG=<sha> ECR_REGISTRY=<acct>.dkr.ecr.<region>.amazonaws.com \
+#        docker compose -f /opt/hrm/docker-compose.yml up -d
+#
+#   open http://<elastic-ip>/          (or https:// through the ALB / host nginx)
+#
+# The web container terminates nothing: TLS is the load balancer's job, or the
+# host nginx with certbot (see deploy/nginx/hrm.conf) in front of WEB_PORT.
+
+name: hrm
+
+services:
+  backend:
+    image: ${ECR_REGISTRY:?set ECR_REGISTRY}/hrm-backend:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    env_file:
+      # HRM_ENV_FILE exists so `docker compose config` can be run anywhere;
+      # production always uses the absolute default.
+      - ${HRM_ENV_FILE:-/etc/hrm/backend.env}
+    environment:
+      # Container-aware JVM sizing; override per instance size if needed.
+      JAVA_OPTS: ${JAVA_OPTS:--XX:MaxRAMPercentage=70 -XX:+UseG1GC -XX:+ExitOnOutOfMemoryError}
+      TZ: ${APP_TIMEZONE:-Asia/Kolkata}
+    expose:
+      - "8080"
+    # Healthcheck is baked into the image (curl /api/health -> 200 only when the
+    # database answers as well).
+    deploy:
+      resources:
+        limits:
+          memory: 1200m
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  web:
+    image: ${ECR_REGISTRY:?set ECR_REGISTRY}/hrm-web:${IMAGE_TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      # host:port, resolved on the compose network.
+      BACKEND_UPSTREAM: backend:8080
+    ports:
+      # Bind to loopback when a host nginx terminates TLS; publish on all
+      # interfaces when the ALB talks to the instance directly.
+      - "${WEB_BIND:-0.0.0.0}:${WEB_PORT:-8080}:80"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+networks:
+  default:
+    name: hrm
