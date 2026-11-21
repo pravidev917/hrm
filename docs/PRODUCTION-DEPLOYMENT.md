@@ -48,8 +48,14 @@ nginx  ──────────────┬─────────�
   first-party cookie.
 - The SPA is built with `VITE_API_BASE_URL=` (empty) and calls relative
   `/api/...` paths.
-- The backend is a jar run by systemd, not a container; there is no Docker,
-  Kubernetes or message broker anywhere in this design.
+- The backend is a jar run by systemd, not a container; there is no Kubernetes
+  or message broker anywhere in this design.
+- A containerised alternative (Docker Compose or ECS Fargate, with RDS in place
+  of local PostgreSQL) is documented separately in `deploy/aws/README.md`, and
+  the rollout order with its acceptance gates is in
+  `docs/AWS-DEPLOYMENT-CHECKLIST.md`. Both shapes run the same application, the
+  same environment variables and the same schema (V1..V5); pick one and do not
+  mix them on the same host.
 
 ---
 
