@@ -1,18 +1,22 @@
 # HRM — production deployment guide
 
-Step-by-step manual deployment for the HRM application on a single AWS EC2
-instance. Every command is copy-pasteable; nothing here has been executed on
-your server by an automated process.
+Step-by-step manual deployment for the HRM application on a single Linux VM
+(Oracle Cloud, any VPS, a local hypervisor). Every command is copy-pasteable;
+nothing here has been executed on your server by an automated process.
+
+The managed cloud variant — Vercel + Oracle VM + Supabase — is
+`docs/DEPLOYMENT.md` and uses containers instead of this systemd layout.
 
 **Control plane:** Windows workstation (PowerShell) builds and uploads artefacts.
-**Runtime:** Ubuntu 24.04 LTS on EC2 (t3.small, 2 GiB RAM + 2 GiB swap).
+**Runtime:** Ubuntu 24.04 LTS on a 2 vCPU / 2 GiB VM. A 2 GiB swap file is
+required on exactly 2 GiB hosts.
 
 Conventions used below:
 
 | Placeholder | Meaning |
 |-------------|---------|
 | `__DOMAIN__` | the public hostname, **not decided yet** |
-| `<instance>` | the EC2 public DNS name or Elastic IP |
+| `<instance>` | the VM hostname or public IP |
 | `ubuntu` | the SSH login user of the instance |
 | `hrm` | the dedicated, non-login service account that runs the backend |
 | `E:\hrm` | project root on Windows |
@@ -50,12 +54,11 @@ nginx  ──────────────┬─────────�
   `/api/...` paths.
 - The backend is a jar run by systemd, not a container; there is no Kubernetes
   or message broker anywhere in this design.
-- A containerised alternative (Docker Compose or ECS Fargate, with RDS in place
-  of local PostgreSQL) is documented separately in `deploy/aws/README.md`, and
-  the rollout order with its acceptance gates is in
-  `docs/AWS-DEPLOYMENT-CHECKLIST.md`. Both shapes run the same application, the
-  same environment variables and the same schema (V1..V5); pick one and do not
-  mix them on the same host.
+- The managed-cloud alternative (Vercel for the SPA, an Oracle Cloud VM running
+  the backend behind Caddy, Supabase for PostgreSQL) is `docs/DEPLOYMENT.md`,
+  with `deploy/oracle/` as its implementation. Both shapes run the same
+  application, the same environment variables and the same schema (V1..V5);
+  pick one and do not mix them on the same host.
 
 ---
 
@@ -468,9 +471,9 @@ browser would silently drop the cookie over plain HTTP.
 
 ---
 
-## 14. AWS security group and firewall
+## 14. Cloud firewall and host firewall
 
-EC2 security group (inbound):
+Cloud security group / security list (inbound):
 
 | Port | Source | Purpose |
 |------|--------|---------|

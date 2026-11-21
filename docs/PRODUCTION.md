@@ -3,7 +3,9 @@
 > Copy-paste deployment commands live in `docs/PRODUCTION-DEPLOYMENT.md`.
 > This file holds the policy, rationale and resource budget.
 
-Target: AWS EC2 **t3.small** (2 vCPU / 2 GiB), Ubuntu 24.04 LTS.
+Target: a 2 vCPU / 2 GiB Linux VM, Ubuntu 24.04 LTS (Oracle Cloud Ampere/AMD,
+any VPS). The managed cloud variant — Vercel for the SPA, Oracle Cloud VM for the
+backend, Supabase for PostgreSQL — is `docs/DEPLOYMENT.md`.
 Stack: Spring Boot 4.1.2 on Java 21 (port 8080) + PostgreSQL 16 + nginx serving the
 Vite build and proxying `/api` to the backend.
 
@@ -109,11 +111,11 @@ Schedule it and copy off-box:
 ```bash
 # /etc/cron.d/hrm-backup
 15 2 * * * root /opt/hrm/deploy/scripts/backup-db.sh >> /var/log/hrm-backup.log 2>&1
-# plus: aws s3 cp via an instance role (no static keys on the box)
+# plus: copy to object storage with a scoped key/role (no broad credentials on the box)
 ```
 
-EBS snapshots (Data Lifecycle Manager, daily, 7 retained) cover the case where
-the dump job itself dies.
+Provider snapshots (Oracle boot/block volume backups, or Supabase's own daily
+backups on a paid plan) cover the case where the dump job itself dies.
 
 **Restore drill** — do it once now and quarterly on a scratch database:
 
