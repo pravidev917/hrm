@@ -14,6 +14,10 @@ const usePolling = process.env.VITE_USE_POLLING === '1'
 export default defineConfig({
   plugins: [react()],
   server: {
+    // Listen on IPv4 and IPv6. Without this Node picks one family, so one of
+    // http://localhost:5173 or http://127.0.0.1:5173 answers and the other is
+    // refused - which looks like "the app is down" in some browsers.
+    host: '::',
     proxy: {
       '/api': {
         target: proxyTarget,

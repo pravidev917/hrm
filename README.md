@@ -93,7 +93,8 @@ cd frontend
 npm run dev
 ```
 
-Open **http://localhost:5173**.
+Open **http://localhost:5173** (or **http://127.0.0.1:5173** — both work: the dev server
+listens on IPv4 and IPv6, and the backend accepts both as origins).
 
 ---
 
@@ -188,7 +189,8 @@ build output and secrets stay out of the repository.
 | Backend exits at startup | A required variable is missing. It refuses to run without `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` and a `JWT_SECRET` of 32+ characters — that failure is intentional. Load `.env` in the same terminal. |
 | `Connection refused` to `localhost:5432` | PostgreSQL is not running: start the service (`pg_ctl`/Services panel), or fix `DB_URL` in `.env`. |
 | `Port 8080 is already in use` | Something else owns 8080. Set `SERVER_PORT=8081` in `.env` and start the frontend with `VITE_PROXY_TARGET=http://localhost:8081 npm run dev`. |
-| Login says *invalid credentials* although the account exists | Wrong page (`/login` vs `/admin/login`) or a wrong password. 5 failures lock that identifier for 15 minutes; restarting the backend clears the lock. |
+| Login says *invalid credentials* although the account exists | Wrong page (`/login` vs `/admin/login`), a wrong password, or a password manager filling in an old saved password — clear the saved entry for the site or try a private window. 5 failures lock that identifier for 15 minutes **server-side, so every browser fails the same way**, and the message changes to *Too many sign-in attempts* (HTTP 429). Restart the backend to clear the lock. |
+| `127.0.0.1:5173` refuses to connect while `localhost:5173` works (or the reverse) | `npm run dev` was listening on only one IP family. `frontend/vite.config.js` sets `server.host: '::'` so both answer — if you edited that file, put the line back and restart the dev server. |
 | Login works in curl but not in the browser | The page and the API are on different origins and the browser sends `Origin`, which `CORS_ALLOWED_ORIGINS` must list exactly. Keep both on 5173/8080 as above and it never happens. |
 | `Schema-validation: missing column ...` | Your database is older than the entities: apply the missing `docs/migrations/V*.sql`, or set `DB_DDL_AUTO=update` while developing. |
 | Tables exist but no admin can sign in | `DEFAULT_ADMIN_*` only seeds when `admins` is empty. Clear both fields, or insert an admin by restarting with them set on an empty table. |
