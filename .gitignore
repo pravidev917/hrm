@@ -43,3 +43,6 @@ deploy/aws/terraform/*.tfstate
 deploy/aws/terraform/*.tfstate.*
 deploy/aws/terraform/crash.log
 deploy/aws/terraform/.terraform.lock.hcl.bak
+# Real values may contain the database password and JWT secret.
+deploy/aws/terraform/terraform.tfvars
+deploy/aws/terraform/*.auto.tfvars
