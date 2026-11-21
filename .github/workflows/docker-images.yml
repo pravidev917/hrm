@@ -1,35 +1,36 @@
 name: Docker images
 
-# Builds the two deployable images and publishes them:
-#   ghcr.io/<owner>/<repo>-backend[:tag]   always (public registry, GITHUB_TOKEN)
-#   <acct>.dkr.ecr.<region>.amazonaws.com/hrm-backend[:tag]  when AWS_REGION is set
+# Builds the backend (and the self-hostable web) image and publishes it to GHCR
+# with environment-specific tags, so a staging build can never be mistaken for a
+# production release:
 #
-# The ECR half authenticates with GitHub OIDC, so no long-lived AWS keys are
-# stored in the repository. Configure once:
-#   - repository variable  AWS_REGION
-#   - repository secret    AWS_DEPLOY_ROLE_ARN   (role trusting this repo's OIDC)
+#   develop  -> staging-<short-sha>, staging-latest, sha-<short-sha>
+#   main     -> production-<short-sha>, production-latest, sha-<short-sha>
+#   v1.2.3   -> 1.2.3, v1.2.3, sha-<short-sha>
+#
+# The Oracle VM pulls hrm-backend by tag (deploy-oracle.yml). The web image is
+# still published for local/self-hosted runs; on Vercel the frontend is built by
+# Vercel itself, not from this image.
+#
+# No cloud credentials are needed: GHCR uses the workflow token.
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
     tags: ['v*.*.*']
   workflow_dispatch:
 
 permissions:
   contents: read
   packages: write
-  id-token: write
 
 concurrency:
   group: docker-images-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  GHCR_PREFIX: ghcr.io
-
 jobs:
-  ghcr:
-    name: Publish to GHCR (${{ matrix.image }})
+  publish:
+    name: ${{ matrix.image }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -47,81 +48,42 @@ jobs:
         id: repo
         run: echo "lower=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
+      - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
 
       - uses: docker/login-action@v3
         with:
-          registry: ${{ env.GHCR_PREFIX }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.GHCR_PREFIX }}/${{ steps.repo.outputs.lower }}-${{ matrix.image }}
+          images: ghcr.io/${{ steps.repo.outputs.lower }}-${{ matrix.image }}
           tags: |
-            type=ref,event=branch
-            type=ref,event=tag
             type=sha,prefix=sha-,format=short
-            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=staging-,format=short,enable=${{ github.ref == 'refs/heads/develop' }}
+            type=sha,prefix=production-,format=short,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=staging-latest,enable=${{ github.ref == 'refs/heads/develop' }}
+            type=raw,value=production-latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=semver,pattern={{version}}
+            type=ref,event=tag
 
       - uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}
           push: true
-          platforms: linux/amd64
+          # Oracle's Always Free Ampere shape is arm64, the AMD shapes are
+          # amd64: publish both so the VM size stays a cost choice, not a
+          # constraint. QEMU builds the non-native half.
+          platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ github.ref_name }}
+            VCS_REF=${{ github.sha }}
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
           provenance: true
           sbom: true
-
-  ecr:
-    name: Publish to ECR (${{ matrix.image }})
-    runs-on: ubuntu-latest
-    # Only runs when the repository is wired to AWS.
-    if: vars.AWS_REGION != ''
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - image: backend
-            context: ./backend
-            ecr_repo: hrm-backend
-          - image: web
-            context: ./frontend
-            ecr_repo: hrm-web
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
-          aws-region: ${{ vars.AWS_REGION }}
-          role-session-name: gha-hrm-images
-
-      - id: ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - uses: docker/setup-buildx-action@v3
-
-      - id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ steps.ecr.outputs.registry }}/${{ matrix.ecr_repo }}
-          tags: |
-            type=sha,prefix=sha-,format=short
-            type=ref,event=tag
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - uses: docker/build-push-action@v6
-        with:
-          context: ${{ matrix.context }}
-          push: true
-          platforms: linux/amd64
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.image }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.image }}

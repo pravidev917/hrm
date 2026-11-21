@@ -37,15 +37,13 @@ build/
 # packaged deliverables from deploy/scripts/build-release.*
 handoff/
 
-# Netlify deploy artefact (the project deploys to AWS only)
+# packaged frontend build (Vercel builds its own from source)
 /frontend.zip
 
-# Terraform working files (state holds generated passwords - never commit)
-deploy/aws/terraform/.terraform/
-deploy/aws/terraform/*.tfstate
-deploy/aws/terraform/*.tfstate.*
-deploy/aws/terraform/crash.log
-deploy/aws/terraform/.terraform.lock.hcl.bak
-# Real values may contain the database password and JWT secret.
-deploy/aws/terraform/terraform.tfvars
-deploy/aws/terraform/*.auto.tfvars
+# Vercel CLI state (.vercel/project.json holds the project id, not a secret,
+# but it is per-machine and confusing in a shared repo)
+.vercel/
+
+# Deploy inputs that carry the database password and the JWT secret.
+deploy/oracle/env/*.env
+!deploy/oracle/env/*.example

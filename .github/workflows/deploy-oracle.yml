@@ -1,0 +1,169 @@
+name: Deploy backend to Oracle Cloud
+
+# Ships an already-published image tag to one of the two Oracle VMs.
+#
+#   develop  -> staging VM    automatic after a successful "Docker images" run
+#   main     -> production VM automatic, but the job waits for the reviewers of
+#                             the "production" GitHub Environment
+#   manual   -> either        workflow_dispatch (approval still applies)
+#
+# The frontend is deployed by Vercel's Git integration, not here: Vercel watches
+# the same branches (develop -> staging domain, main -> production domain).
+#
+# Per-environment configuration (GitHub Environment of the same name):
+#   secrets   VM_HOST, VM_USER, VM_SSH_KEY
+#   variables API_HEALTH_URL        e.g. https://api-staging.example.com/api/health
+#
+# A staging tag (staging-*) can never be deployed to production and vice versa:
+# the guard step rejects a mismatched prefix before anything is touched.
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target environment'
+        required: true
+        default: staging
+        type: choice
+        options: [staging, production]
+      image_tag:
+        description: 'Image tag (defaults to <environment>-<short sha>)'
+        required: false
+        type: string
+  workflow_run:
+    workflows: ['Docker images']
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  resolve:
+    name: Resolve target
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.workflow_run.conclusion == 'success'
+    outputs:
+      environment: ${{ steps.r.outputs.environment }}
+      image_tag: ${{ steps.r.outputs.image_tag }}
+      registry_owner: ${{ steps.r.outputs.registry_owner }}
+
+    steps:
+      - id: r
+        env:
+          EVENT: ${{ github.event_name }}
+          RUN_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_SHA: ${{ github.event.workflow_run.head_sha }}
+          WANTED: ${{ inputs.environment }}
+          WANTED_TAG: ${{ inputs.image_tag }}
+        run: |
+          set -euo pipefail
+          sha="${RUN_SHA:-${{ github.sha }}}"
+          short="$(printf '%s' "$sha" | cut -c1-7)"
+
+          if [ "$EVENT" = "workflow_run" ]; then
+            case "$RUN_BRANCH" in
+              develop) env=staging ;;
+              main)    env=production ;;
+              *) echo "branch '$RUN_BRANCH' does not deploy (only develop/main)"; exit 0 ;;
+            esac
+          else
+            env="${WANTED:-staging}"
+          fi
+
+          tag="${WANTED_TAG:-${env}-${short}}"
+          case "$env:$tag" in
+            staging:staging-*)       : ;;
+            production:production-*) : ;;
+            production:v[0-9]*)      : ;;   # allow deploying a release tag
+            *)
+              echo "::error::tag '$tag' does not belong to '$env' (staging-* for staging, production-*/v* for production)"
+              exit 1
+              ;;
+          esac
+
+          owner="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          echo "environment=$env" >> "$GITHUB_OUTPUT"
+          echo "image_tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "registry_owner=$owner" >> "$GITHUB_OUTPUT"
+          echo "target: $env ($tag) as ghcr.io/$owner"
+
+  deploy:
+    name: Deploy ${{ needs.resolve.outputs.image_tag }} to ${{ needs.resolve.outputs.environment }}
+    needs: resolve
+    if: needs.resolve.outputs.environment != ''
+    runs-on: ubuntu-latest
+    # The GitHub Environment supplies the host/ssh secrets and, for production,
+    # the required reviewers that hold the job until someone approves.
+    environment:
+      name: ${{ needs.resolve.outputs.environment }}
+
+    concurrency:
+      group: hrm-deploy-${{ needs.resolve.outputs.environment }}
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prepare SSH key
+        env:
+          SSH_KEY: ${{ secrets.VM_SSH_KEY }}
+          HOST: ${{ secrets.VM_HOST }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/hrm_deploy
+          chmod 600 ~/.ssh/hrm_deploy
+          ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Upload compose file, Caddyfile and scripts
+        env:
+          HOST: ${{ secrets.VM_HOST }}
+          USER_NAME: ${{ secrets.VM_USER }}
+        run: |
+          set -euo pipefail
+          U="$USER_NAME@$HOST"
+          scp -i ~/.ssh/hrm_deploy deploy/oracle/docker-compose.yml "$U:~/hrm-docker-compose.yml"
+          scp -i ~/.ssh/hrm_deploy deploy/oracle/Caddyfile "$U:~/hrm-Caddyfile"
+          scp -i ~/.ssh/hrm_deploy deploy/oracle/deploy-remote.sh "$U:~/hrm-deploy-remote.sh"
+          ssh -i ~/.ssh/hrm_deploy "$U" '
+            set -euo pipefail
+            sudo install -m 0755 ~/hrm-deploy-remote.sh /opt/hrm/deploy-remote.sh
+            sudo install -m 0644 ~/hrm-docker-compose.yml /opt/hrm/docker-compose.yml
+            sudo install -m 0644 ~/hrm-Caddyfile /opt/hrm/Caddyfile
+            rm -f ~/hrm-deploy-remote.sh ~/hrm-docker-compose.yml ~/hrm-Caddyfile
+            test -f /etc/hrm/backend.env || { echo "/etc/hrm/backend.env is missing" >&2; exit 1; }
+            test -f /opt/hrm/deploy.env    || { echo "/opt/hrm/deploy.env is missing" >&2; exit 1; }
+          '
+
+      - name: Deploy (container health gate, automatic rollback)
+        env:
+          HOST: ${{ secrets.VM_HOST }}
+          USER_NAME: ${{ secrets.VM_USER }}
+          TAG: ${{ needs.resolve.outputs.image_tag }}
+          OWNER: ${{ needs.resolve.outputs.registry_owner }}
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/hrm_deploy "$USER_NAME@$HOST" \
+            "sudo IMAGE_TAG='$TAG' IMAGE_REGISTRY='ghcr.io/$OWNER' /opt/hrm/deploy-remote.sh"
+
+      - name: Verify the public endpoint
+        env:
+          URL: ${{ vars.API_HEALTH_URL }}
+        run: |
+          set -euo pipefail
+          [ -n "${URL:-}" ] || { echo "::error::set the API_HEALTH_URL variable on this environment"; exit 1; }
+          for attempt in $(seq 1 20); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 "$URL" || true)"
+            if [ "$code" = "200" ]; then echo "$URL -> 200"; exit 0; fi
+            echo "attempt $attempt: $code"
+            sleep 6
+          done
+          echo "::error::$URL did not return 200"
+          exit 1
+
+      - name: Clean up the key
+        if: always()
+        run: rm -f ~/.ssh/hrm_deploy
