@@ -30,3 +30,16 @@ Desktop.ini
 *.p12
 *.pfx
 *.jks
+
+# release artefacts produced by deploy/scripts/build-release.*
+build/
+
+# Netlify deploy artefact (the project deploys to AWS only)
+/frontend.zip
+
+# Terraform working files (state holds generated passwords - never commit)
+deploy/aws/terraform/.terraform/
+deploy/aws/terraform/*.tfstate
+deploy/aws/terraform/*.tfstate.*
+deploy/aws/terraform/crash.log
+deploy/aws/terraform/.terraform.lock.hcl.bak
