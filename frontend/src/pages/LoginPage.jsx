@@ -89,7 +89,7 @@ export default function LoginPage({ role = 'EMPLOYEE' }) {
             }}
             aria-invalid={errors.identifier ? true : undefined}
             aria-describedby={errors.identifier ? 'login-identifier-err' : undefined}
-            placeholder={isAdmin ? 'you@company.com' : 'you@company.com · 98765 43210 · EMP-0007'}
+            placeholder="you@company.com"
           />
           {errors.identifier && (
             <span id="login-identifier-err" className="field-error">

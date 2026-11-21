@@ -8,6 +8,15 @@
 
 html, body, #root { min-height: 100%; }
 
+/* The page itself must never scroll sideways. `clip` stops stray wide children
+   from creating a scrollbar without turning the document into a scroll
+   container, which would break the sticky topbar. Tables and calendars scroll
+   inside their own wrappers instead. */
+html { overflow-x: clip; }
+
+/* iOS: never re-scale text after an orientation change. */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+
 body {
   margin: 0;
   background: var(--bg);
@@ -56,16 +65,20 @@ a:hover { text-decoration: underline; }
 .skip-link:focus { top: 12px; }
 
 /* ============================== Layout ============================== */
-.shell { display: flex; min-height: 100vh; }
+/* Dynamic viewport units where supported, so mobile browser chrome does not
+   push the layout past the visible area. */
+.shell { display: flex; min-height: 100vh; min-height: 100dvh; }
 
 .sidebar {
   position: fixed; inset: 0 auto 0 0;
-  width: var(--sidebar-w);
+  width: var(--sidebar-w-viewport);
+  max-width: 100%;
   display: flex; flex-direction: column;
   background: linear-gradient(180deg, var(--purple-950) 0%, var(--purple-900) 100%);
   color: var(--sidebar-text);
   padding: var(--space-4) var(--space-3);
   overflow-y: auto;
+  overscroll-behavior: contain;
   z-index: 40;
   transition: transform var(--dur) var(--ease);
 }
@@ -166,7 +179,7 @@ a:hover { text-decoration: underline; }
 .scrim { position: fixed; inset: 0; background: rgb(42 14 71 / 55%); backdrop-filter: blur(2px); z-index: 30; }
 
 /* Topbar user area */
-.topbar-title { font-size: var(--text-md); font-weight: var(--weight-semibold); }
+.topbar-title { font-size: var(--text-md); font-weight: var(--weight-semibold); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .user-chip { display: flex; align-items: center; gap: var(--space-3); }
 .user-meta { display: flex; flex-direction: column; line-height: 1.25; }
 .user-meta strong { font-size: var(--text-sm); font-weight: var(--weight-semibold); }
@@ -204,6 +217,8 @@ a:hover { text-decoration: underline; }
 .card-flush { padding: 0; }
 .card-header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border); }
 .card-header h2 { margin: 0; }
+/* Small inline links inside cards keep a clickable height at every width. */
+.card a.small { display: inline-flex; align-items: center; min-height: 32px; }
 .card-body { padding: var(--space-5); }
 
 .grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-4); }
@@ -298,12 +313,13 @@ a:hover { text-decoration: underline; }
 
 .icon-btn {
   display: inline-grid; place-items: center;
-  width: 36px; height: 36px;
-  background: none; border: 1px solid transparent; border-radius: var(--radius-sm);
+  width: 32px; height: 32px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
   color: var(--text-secondary); cursor: pointer;
   transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 .icon-btn:hover { background: var(--surface-2); color: var(--text); }
+.icon-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .row-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; align-items: center; justify-content: flex-end; }
 
 /* ============================== Forms ============================== */
@@ -347,7 +363,7 @@ input[type='checkbox'], input[type='radio'] { width: auto; min-height: 0; accent
 .filter select, .filter input { width: auto; min-width: 160px; }
 
 /* ============================== Table ============================== */
-.table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
 .table { width: 100%; border-collapse: collapse; font-size: var(--text-sm); }
 .table th, .table td { padding: var(--space-3); text-align: left; border-bottom: 1px solid var(--border); vertical-align: middle; }
 .table th {
@@ -362,6 +378,7 @@ input[type='checkbox'], input[type='radio'] { width: auto; min-height: 0; accent
 .table tbody tr:last-child td { border-bottom: 0; }
 .table tbody tr { transition: background var(--dur-fast) var(--ease); }
 .table tbody tr:hover { background: var(--gray-25); }
+.table td { overflow-wrap: anywhere; }
 .table td.is-empty { color: var(--muted); }
 .th-btn {
   all: unset; display: inline-flex; align-items: center; gap: 4px;
@@ -446,7 +463,7 @@ input[type='checkbox'], input[type='radio'] { width: auto; min-height: 0; accent
 .modal:focus { outline: none; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--border); }
 .modal-header h2 { margin: 0; font-size: var(--text-lg); }
-.modal-body { padding: var(--space-5); overflow-y: auto; }
+.modal-body { padding: var(--space-5); overflow-y: auto; min-height: 0; } /* min-height lets the body scroll inside the flex column */
 .modal-footer { display: flex; justify-content: flex-end; gap: var(--space-2); padding: var(--space-3) var(--space-5); border-top: 1px solid var(--border); background: var(--gray-25); border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes pop-in { from { opacity: 0; transform: translateY(6px) scale(0.99); } to { opacity: 1; transform: none; } }
@@ -471,12 +488,15 @@ input[type='checkbox'], input[type='radio'] { width: auto; min-height: 0; accent
 /* ============================== Auth ============================== */
 .auth-page {
   min-height: 100vh;
+  min-height: 100dvh;
   display: grid; grid-template-columns: 1fr;
   background:
     radial-gradient(1100px 520px at 15% -10%, var(--purple-100), transparent 60%),
     linear-gradient(180deg, var(--gray-50), var(--gray-100));
 }
-.auth-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+/* Single column until the aside has room to exist: a two-column grid with a
+   hidden aside made the sign-in card occupy half the phone screen. */
+.auth-split { grid-template-columns: minmax(0, 1fr); }
 .auth-aside {
   display: none;
   flex-direction: column; justify-content: space-between;
@@ -505,6 +525,7 @@ input[type='checkbox'], input[type='radio'] { width: auto; min-height: 0; accent
 
 /* ============================== Responsive ============================== */
 @media (min-width: 1024px) {
+  .auth-split { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
   .auth-split .auth-aside { display: flex; }
 }
 
@@ -520,6 +541,11 @@ input[type='checkbox'], input[type='radio'] { width: auto; min-height: 0; accent
   .topbar { padding: var(--space-2) var(--space-4); }
   .main { padding: var(--space-4); }
   .grid-2, .grid-3 { grid-template-columns: 1fr; }
+
+  /* Drawer items must be comfortably tappable and clear the home indicator. */
+  .nav-link { min-height: var(--tap-min); }
+  .nav-section { padding-top: var(--space-3); }
+  .sidebar { padding-bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px)); }
 }
 
 @media (max-width: 640px) {
@@ -553,6 +579,15 @@ input[type='checkbox'], input[type='radio'] { width: auto; min-height: 0; accent
   .clamp { max-width: 180px; }
   .row-actions { justify-content: flex-end; flex-wrap: wrap; }
   .toasts { left: var(--space-3); right: var(--space-3); bottom: var(--space-3); max-width: none; }
+
+  /* Attendance calendar: tighter cells so the 7-column grid still fits. */
+  .cal-grid { gap: 4px; }
+  .cal-day { min-height: 38px; font-size: var(--text-xs); }
+  .cal-holiday-dot { bottom: 3px; width: 3px; height: 3px; }
+
+  /* Performance leaderboard. */
+  .lb-table th, .lb-table td { padding: var(--space-2); }
+  .lb-table { font-size: var(--text-xs); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -583,18 +618,9 @@ input[type='checkbox'], input[type='radio'] { width: auto; min-height: 0; accent
 .cal-title { font-size: var(--text-lg); font-weight: var(--weight-semibold); margin: 0; }
 .cal-nav { display: flex; align-items: center; gap: var(--space-1); }
 
-.icon-btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 32px; height: 32px; border-radius: var(--radius-sm);
-  border: 1px solid var(--border); background: var(--surface); color: var(--text-secondary);
-  cursor: pointer; transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
-}
-.icon-btn:hover { background: var(--surface-2); color: var(--text); }
-.icon-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
-
 .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
 .cal-dow {
-  text-align: center; font-size: 10px; font-weight: var(--weight-semibold);
+  text-align: center; font-size: 0.6875rem; font-weight: var(--weight-semibold);
   text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted);
   padding-bottom: var(--space-1);
 }
@@ -705,13 +731,7 @@ input[type='checkbox'], input[type='radio'] { width: auto; min-height: 0; accent
   display: flex; flex-direction: column; align-items: flex-end; line-height: 1.1;
   font-size: var(--text-sm); font-weight: var(--weight-semibold); font-variant-numeric: tabular-nums;
 }
-.achievement-unit { font-size: 10px; font-weight: var(--weight-normal); color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
-
-@media (max-width: 640px) {
-  .cal-grid { gap: 4px; }
-  .cal-day { min-height: 34px; font-size: var(--text-xs); }
-  .cal-holiday-dot { bottom: 3px; width: 3px; height: 3px; }
-}
+.achievement-unit { font-size: 0.6875rem; font-weight: var(--weight-normal); color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
 
 /* ---------------------------------------------------------------------------
    Performance leaderboard
@@ -754,15 +774,10 @@ input[type='checkbox'], input[type='radio'] { width: auto; min-height: 0; accent
 .lb-you {
   margin-left: var(--space-2); padding: 1px 6px; border-radius: var(--radius-pill);
   background: var(--primary-soft); color: var(--primary);
-  font-size: 10px; font-weight: var(--weight-semibold); text-transform: uppercase; letter-spacing: 0.04em;
+  font-size: 0.6875rem; font-weight: var(--weight-semibold); text-transform: uppercase; letter-spacing: 0.04em;
 }
 .lb-table tr.is-you { background: var(--primary-soft); }
 .lb-table tr.is-you:hover { background: var(--purple-100); }
-
-@media (max-width: 640px) {
-  .lb-table th, .lb-table td { padding: var(--space-2); }
-  .lb-table { font-size: var(--text-xs); }
-}
 
 /* ---- DataTable row details ---- */
 .detail-toggle {
@@ -770,8 +785,11 @@ input[type='checkbox'], input[type='radio'] { width: auto; min-height: 0; accent
   text-align: center;
   padding-inline: 0;
 }
-.detail-toggle .btn-ghost {
+.detail-toggle .btn-ghost,
+.detail-toggle .btn-icon {
   color: var(--text-muted);
+  width: 32px;
+  height: 32px;
 }
 .detail-row > td {
   background: var(--surface-sunken, #f8fafc);
@@ -802,9 +820,121 @@ input[type='checkbox'], input[type='radio'] { width: auto; min-height: 0; accent
   overflow-wrap: anywhere;
 }
 
-/* mobile: the toggle column stays visible, detail grid stacks */
-@media (max-width: 720px) {
-  .detail-grid {
-    grid-template-columns: 1fr;
-  }
+/* Row details: stacked below the tablet tier (see the 768 block at the end). */
+
+/* ==========================================================================
+   Responsive tuning.
+
+   Breakpoint system (one intent per breakpoint, applied consistently):
+     1200  grid-sidebar collapses to one column
+     1080  attendance split collapses to one column
+     1024  auth page gains the two-column brand aside
+      960  sidebar becomes an off-canvas drawer (menu button + scrim)
+      768  tablet: stats widen, detail grids stack, touch targets grow
+      640  data tables become stacked cards, form grids go one column
+      480  phone: compact topbar, 44px tap targets, bottom-sheet dialogs,
+           16px inputs
+      380  small phone (320-360): stack label/value rows, one-up stats
+
+   Rules above 768px are untouched; every rule below lives inside a
+   max-width query. No per-device hacks, no !important.
+   ========================================================================== */
+@media (max-width: 768px) {
+  .stats { grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--space-3); }
+  .card-header { padding: var(--space-3) var(--space-4); }
+  .page-header h1 { font-size: var(--heading-xl); }
+  /* Fewer, wider cards beat cramped 4-up stat rows on tablets. */
+  .stat-value { font-size: var(--text-xl); }
+  .toolbar { row-gap: var(--space-2); }
+
+  /* Detail grids inside table rows stack below the desktop tiles. */
+  .detail-grid { grid-template-columns: 1fr; }
+  .detail-toggle { width: 48px; }
+  .detail-toggle .btn-ghost, .detail-toggle .btn-icon { width: 40px; min-height: 40px; }
+
+  /* Tablets are still touch devices: small controls get a roomier hit area. */
+  .btn-sm { min-height: 36px; }
+  .th-btn { padding-block: 8px; }
+  .card a.small { display: inline-flex; align-items: center; min-height: 36px; }
+}
+
+@media (max-width: 480px) {
+  :root { --topbar-h: 52px; }
+
+  .topbar { gap: var(--space-2); padding: var(--space-2) var(--space-3); }
+  .topbar-title { font-size: var(--text-sm); }
+  .user-chip { gap: var(--space-2); }
+  .user-chip .avatar { width: 30px; height: 30px; font-size: 0.8rem; }
+  .sign-out-label { display: none; }
+
+  /* Comfortable tap targets without changing the desktop sizing. */
+  .btn, .btn-sm, .seg { min-height: var(--tap-min); }
+  .icon-btn, .menu-btn { min-width: var(--tap-min); min-height: var(--tap-min); }
+  .th-btn { min-height: 28px; }
+  /* 16px inputs stop iOS Safari from zooming the page on focus. */
+  input, select, textarea { min-height: var(--tap-min); font-size: var(--text-md); }
+
+  .main { padding: var(--space-3); }
+  .card { padding: var(--space-4); }
+  .card a.small { min-height: var(--tap-min); }
+  .page-actions .btn { flex: 1 1 auto; }
+
+  .pager { flex-direction: column; align-items: stretch; gap: var(--space-2); }
+  .pager-buttons { justify-content: space-between; }
+  .pager-buttons .btn { flex: 1 1 auto; }
+
+  /* Dialogs become bottom sheets so short viewports keep their content. */
+  .modal-backdrop { padding: 0; align-items: end; }
+  .modal, .modal-wide { max-width: none; max-height: 92dvh; border-radius: var(--radius-lg) var(--radius-lg) 0 0; }
+  .modal-header, .modal-footer { padding-inline: var(--space-4); }
+  .modal-body { padding: var(--space-4); }
+
+  .auth-main { padding: var(--space-5) var(--space-3); }
+  .auth-card-panel { padding: var(--space-5) var(--space-4); }
+  .auth-card h1 { font-size: var(--heading-xl); }
+  .auth-subtitle { font-size: var(--text-sm); }
+
+  .clamp { max-width: 100%; }
+  .brand-logo-full { width: 160px; }
+  /* Keep toasts clear of the home indicator / rounded corners. */
+  .toasts { bottom: calc(var(--space-3) + env(safe-area-inset-bottom, 0px)); }
+}
+
+@media (max-width: 380px) {
+  .main { padding: var(--space-2); }
+  .card, .auth-card-panel { padding: var(--space-3); }
+  .page-header h1 { font-size: var(--text-xl); }
+  .page-actions .btn { flex: 1 1 100%; }
+  .stats { grid-template-columns: 1fr; }
+  .user-chip { display: none; }
+  .brand-logo-full { width: 140px; }
+
+  /* Below ~380px a two-column label/value row is too tight: stack it. */
+  .table td { flex-direction: column; align-items: flex-start; text-align: left; gap: 2px; }
+  .table td::before { font-size: 0.6875rem; }
+  .table td.right { text-align: left; }
+  .table .row-actions { justify-content: flex-start; }
+
+  .cal-grid { gap: 3px; }
+  .cal-day { min-height: 34px; font-size: 0.6875rem; }
+}
+
+/* Short landscape phones (e.g. 568x320 / 812x375). The form stays scrollable,
+   but padding and the logo shrink so the submit button is not pushed below
+   the fold by chrome that the desktop spacing assumed. */
+@media (max-height: 560px) and (max-width: 1024px) {
+  .auth-main { padding: var(--space-3); }
+  .auth-card-panel { padding: var(--space-3) var(--space-4); }
+  /* The lockup is the first thing to go when height, not width, is scarce:
+     the page title still names the product. */
+  .auth-card-panel .brand-center { display: none; }
+  .auth-card h1 { margin: 0 0 var(--space-3); font-size: var(--text-lg); }
+  .auth-subtitle { margin: calc(-1 * var(--space-2)) 0 var(--space-3); }
+  .auth-footer { margin-top: var(--space-2); }
+  .brand-logo-full { width: 140px; }
+  .modal-backdrop { padding: var(--space-2); }
+  /* A landscape phone is still a handset: keep controls thumb-sized. */
+  .btn-sm { min-height: 40px; }
+  .th-btn { padding-block: 8px; }
+  .icon-btn, .menu-btn { min-width: 40px; min-height: 40px; }
 }
