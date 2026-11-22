@@ -8,14 +8,9 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 @Entity
-@Table(
-    name = "weekly_reports",
-    uniqueConstraints = {
-        @UniqueConstraint(
-            columnNames = {"employee_id", "week_start_date", "week_end_date"}
-        )
-    }
-)
+// An employee may file more than one weekly report for the same week (one per
+// client, or one per candidate placed), so there is no unique constraint here.
+@Table(name = "weekly_reports")
 @Getter
 @Setter
 @NoArgsConstructor

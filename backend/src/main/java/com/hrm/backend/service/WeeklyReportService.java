@@ -239,15 +239,6 @@ public class WeeklyReportService {
 
         LocalDate[] period = getWeekPeriod(request.getReportDate());
 
-        if (repository
-                .findByEmployeeEmployeeIdAndWeekStartDateAndWeekEndDate(
-                        employeeId, period[0], period[1])
-                .isPresent()) {
-
-            throw new RuntimeException(
-                    "Weekly report already exists for this employee and week");
-        }
-
         WeeklyReport report = new WeeklyReport();
 
         report.setEmployee(employee);
@@ -312,19 +303,6 @@ public class WeeklyReportService {
 
             if (!report.getWeekStartDate().equals(period[0]) ||
                 !report.getWeekEndDate().equals(period[1])) {
-
-                boolean duplicate = repository
-                        .findByEmployeeEmployeeIdAndWeekStartDateAndWeekEndDate(
-                                employeeId, period[0], period[1])
-                        .filter(existing ->
-                                !existing.getWeeklyReportId()
-                                        .equals(reportId))
-                        .isPresent();
-
-                if (duplicate) {
-                    throw new RuntimeException(
-                            "Weekly report already exists for this week");
-                }
 
                 report.setWeekStartDate(period[0]);
                 report.setWeekEndDate(period[1]);
@@ -410,21 +388,6 @@ public class WeeklyReportService {
 
             if (!report.getWeekStartDate().equals(period[0]) ||
                 !report.getWeekEndDate().equals(period[1])) {
-
-                boolean duplicate = repository
-                        .findByEmployeeEmployeeIdAndWeekStartDateAndWeekEndDate(
-                                report.getEmployee().getEmployeeId(),
-                                period[0],
-                                period[1])
-                        .filter(existing ->
-                                !existing.getWeeklyReportId()
-                                        .equals(reportId))
-                        .isPresent();
-
-                if (duplicate) {
-                    throw new RuntimeException(
-                            "Weekly report already exists for this week");
-                }
 
                 report.setWeekStartDate(period[0]);
                 report.setWeekEndDate(period[1]);

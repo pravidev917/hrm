@@ -32,6 +32,8 @@ public interface WeeklyReportRepository
     Optional<WeeklyReport> findByWeeklyReportIdAndEmployeeEmployeeId(
             Long weeklyReportId, Long employeeId);
 
+    // Several reports may share a week (one per client, or one per candidate placed),
+    // so every query here returns a list and callers must sum the rows they care about.
     List<WeeklyReport> findByEmployeeEmployeeIdAndWeekStartDateBetween(
             Long employeeId,
             LocalDate startDate,
@@ -55,16 +57,6 @@ public interface WeeklyReportRepository
             @Param("adminId") Long adminId,
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate);
-
-    Optional<WeeklyReport> findByEmployeeEmployeeIdAndWeekStartDateAndWeekEndDate(
-            Long employeeId,
-            LocalDate weekStartDate,
-            LocalDate weekEndDate);
-
-    boolean existsByEmployeeEmployeeIdAndWeekStartDateAndWeekEndDate(
-            Long employeeId,
-            LocalDate weekStartDate,
-            LocalDate weekEndDate);
 
     // Cascade cleanup when an administrator deletes an employee.
     long deleteByEmployeeEmployeeId(Long employeeId);

@@ -121,11 +121,14 @@ export default function WeeklyReportsPage() {
     if (form.report) {
       await api.update(form.report.weeklyReportId, body)
       toast.success('Weekly report updated')
+      setForm(null)
     } else {
       await api.create(body)
-      toast.success('Weekly report submitted')
+      toast.success('Weekly report submitted — add another or close')
+      // Keep the dialog open with the week retained so a second report for the same week
+      // (another client, or another candidate) is one click away.
+      setForm({ again: Date.now(), keep: { reportDate: v.reportDate } })
     }
-    setForm(null)
     reload()
   }
 
@@ -140,7 +143,11 @@ export default function WeeklyReportsPage() {
     <>
       <PageHeader
         title="Weekly reports"
-        subtitle={isAdmin ? 'Weekly results across your team.' : 'Summarise your week: interviews, selections and joinings.'}
+        subtitle={
+          isAdmin
+            ? 'Weekly results across your team.'
+            : 'Summarise your week: interviews, selections and joinings. Add as many reports per week as you need — per client or per candidate.'
+        }
         actions={
           !isAdmin && (
             <button type="button" className="btn btn-primary" onClick={() => setForm({})}>
@@ -160,11 +167,16 @@ export default function WeeklyReportsPage() {
               <SearchInput value={query} onChange={setQuery} placeholder="Search employee…" />
             </Toolbar>
           )}
-          <DataTable columns={columns} rows={rows} rowKey="weeklyReportId" emptyTitle={data.length ? 'No reports match your search' : 'No weekly reports yet'} emptyHint={!isAdmin && !data.length ? 'Use “New weekly report” to submit this week’s results.' : undefined} />
+          <DataTable columns={columns} rows={rows} rowKey="weeklyReportId" emptyTitle={data.length ? 'No reports match your search' : 'No weekly reports yet'} emptyHint={
+            !isAdmin && !data.length
+              ? 'Use “New weekly report” to submit this week’s results. You can add more than one report per week — one per client, or one per candidate placed.'
+              : undefined
+          } />
         </section>
       )}
       {form && (
         <FormModal
+          key={form.again ?? form.report?.weeklyReportId ?? 'new-weekly-report'}
           wide
           title={form.report ? 'Edit weekly report' : 'New weekly report'}
           fields={FIELDS}
@@ -177,6 +189,7 @@ export default function WeeklyReportsPage() {
                 }
               : {
                   reportDate: todayISO(),
+                  ...(form.keep ?? {}),
                   clientId: '',
                   profilesSubmitted: 0,
                   interviewsScheduled: 0,

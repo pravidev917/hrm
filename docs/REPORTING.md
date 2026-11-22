@@ -23,6 +23,11 @@ Date range, employee, client, position and sourcing platform. The employee dashb
 
 `V5__reporting_candidate_tracking.sql` adds:
 
+- **Weekly reports are not limited to one per employee per week either.** Several reports
+  may share a week - one per client, or one per candidate placed - and each keeps its own
+  counts and revenue. Reporting totals, client budgets, the performance tracker and the
+  employee dashboard sum every row. `ix_weekly_reports_employee_week` indexes the
+  employee + week lookup.
 - **Daily reports are not limited to one per employee per day.** An employee may file
   several reports for the same date - one per client, or several for the same client - and
   each keeps its own platform split. Every total (dashboards, reporting, the performance
