@@ -9,10 +9,12 @@ const baseURL = import.meta.env.VITE_API_BASE_URL ?? ''
 
 // The backend authenticates with an HttpOnly "HRM_AUTH" cookie, so the browser
 // must send credentials. The JWT is never readable from JavaScript.
+// 45s, not 20s: a free-plan backend that slept while nobody used the app needs
+// 15-30s to boot again, and a timeout there looks like "the server is down".
 export const apiClient = axios.create({
   baseURL,
   withCredentials: true,
-  timeout: 20000,
+  timeout: 45000,
   headers: { 'Content-Type': 'application/json' },
 })
 
