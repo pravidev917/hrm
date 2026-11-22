@@ -253,14 +253,25 @@ export default function DailyReportsPage() {
     if (form.report) {
       await employeeDailyReportApi.update(form.report.dailyReportId, v.clientId, body)
       toast.success('Report updated')
+      setForm(null)
     } else if (isAdmin) {
       await adminDailyReportApi.create(v.employeeId, v.clientId, body)
-      toast.success('Report added for the employee')
+      toast.success('Report added — add another or close')
     } else {
       await employeeDailyReportApi.create(v.clientId, body)
-      toast.success('Report submitted')
+      toast.success('Report submitted — add another or close')
     }
-    setForm(null)
+    // A brand new report keeps the dialog open so the next one for the same day is one
+    // click away; the employee and date are kept, the counts and the client reset.
+    if (!form.report) {
+      setForm({
+        again: Date.now(),
+        keep: {
+          ...(isAdmin ? { employeeId: String(v.employeeId) } : {}),
+          reportDate: v.reportDate,
+        },
+      })
+    }
     reload()
   }
 
@@ -278,7 +289,7 @@ export default function DailyReportsPage() {
         subtitle={
           isAdmin
             ? 'Daily recruitment activity across your team.'
-            : 'Log your daily sourcing and submissions. One report per day.'
+            : 'Log your daily sourcing and submissions. Add as many reports as you need — per client, several times a day.'
         }
         actions={
           <button
@@ -348,7 +359,7 @@ export default function DailyReportsPage() {
             emptyHint={
               !isAdmin && !data.length
                 ? clients.data.length
-                  ? 'Use “New report” to submit today’s numbers.'
+                  ? 'Use “New report” to submit today’s numbers. You can add more than one report per day — one per client, or several for the same client.'
                   : 'Your administrator has not added an active client yet.'
                 : undefined
             }
@@ -370,6 +381,7 @@ export default function DailyReportsPage() {
 
       {form && (
         <FormModal
+          key={form.again ?? form.report?.dailyReportId ?? 'new-report'}
           wide
           title={form.report ? 'Edit daily report' : 'New daily report'}
           fields={fields}
@@ -383,6 +395,7 @@ export default function DailyReportsPage() {
               : {
                   ...(isAdmin ? { employeeId: '' } : {}),
                   reportDate: todayISO(),
+                  ...(form.keep ?? {}),
                   clientId: '',
                   profilesSubmitted: 0,
                   candidatesSourced: 0,

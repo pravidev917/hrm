@@ -8,6 +8,7 @@ import com.hrm.backend.entity.DailyReport;
 import com.hrm.backend.entity.DailyReportPlatformCount;
 import com.hrm.backend.entity.Employee;
 import com.hrm.backend.repository.ClientRepository;
+import com.hrm.backend.repository.DailyReportPlatformCountRepository;
 import com.hrm.backend.repository.DailyReportRepository;
 import com.hrm.backend.repository.EmployeeRepository;
 
@@ -26,17 +27,20 @@ import java.util.Optional;
 public class DailyReportService {
 
     private final DailyReportRepository reportRepository;
+    private final DailyReportPlatformCountRepository platformCountRepository;
     private final EmployeeRepository employeeRepository;
     private final ClientRepository clientRepository;
     private final CompanyScopeService companyScope;
 
     public DailyReportService(
             DailyReportRepository reportRepository,
+            DailyReportPlatformCountRepository platformCountRepository,
             EmployeeRepository employeeRepository,
             ClientRepository clientRepository,
             CompanyScopeService companyScope) {
 
         this.reportRepository = reportRepository;
+        this.platformCountRepository = platformCountRepository;
         this.employeeRepository = employeeRepository;
         this.clientRepository = clientRepository;
         this.companyScope = companyScope;
@@ -110,26 +114,6 @@ public class DailyReportService {
         if (reportDate.isAfter(LocalDate.now())) {
             throw new RuntimeException(
                     "Future report dates are not allowed");
-        }
-    }
-
-    // Check duplicate report date
-    private void validateDuplicateReport(
-            Long employeeId,
-            LocalDate reportDate,
-            Long currentReportId) {
-
-        Optional<DailyReport> existing =
-                reportRepository
-                        .findByEmployeeEmployeeIdAndReportDate(
-                                employeeId, reportDate);
-
-        if (existing.isPresent() &&
-                !existing.get().getDailyReportId()
-                        .equals(currentReportId)) {
-
-            throw new RuntimeException(
-                    "A report already exists for this employee on this date");
         }
     }
 
@@ -207,6 +191,13 @@ public class DailyReportService {
                     "Platform counts add up to " + platformTotal
                             + " but candidates sourced is " + sourced
                             + ". They must match so the same profiles are not counted twice.");
+        }
+
+        // A saved report already has rows, and (daily_report_id, platform) is unique, so
+        // the old ones must go in the database before the new ones arrive. Clearing the
+        // collection alone lets Hibernate insert first and trip that constraint.
+        if (report.getDailyReportId() != null) {
+            platformCountRepository.deleteByReportId(report.getDailyReportId());
         }
 
         report.getPlatformCounts().clear();
@@ -297,9 +288,6 @@ public class DailyReportService {
         }
 
         validateReportDate(request.getReportDate());
-
-        validateDuplicateReport(
-                employeeId, request.getReportDate(), null);
 
         Integer profiles = request.getProfilesSubmitted() == null
                 ? 0 : request.getProfilesSubmitted();
@@ -477,11 +465,6 @@ public class DailyReportService {
                 : existing.getReportDate();
 
         validateReportDate(newDate);
-
-        validateDuplicateReport(
-                employeeId,
-                newDate,
-                existing.getDailyReportId());
 
         Integer profiles = request.getProfilesSubmitted() != null
                 ? request.getProfilesSubmitted()

@@ -23,7 +23,12 @@ Date range, employee, client, position and sourcing platform. The employee dashb
 
 `V5__reporting_candidate_tracking.sql` adds:
 
-- `sourcing_platforms` (company-scoped, seeded with the five platforms every form, table and chart uses: Naukri, Apna, LinkedIn, Careers, Others). "Indeed" was retired in favour of Apna; the old free-text options (Referral, Company Website, Other) fold into Others. `SourcingPlatforms` is the single source of those names on the backend (`/api/admin/sourcing` serves the analytics).
+- **Daily reports are not limited to one per employee per day.** An employee may file
+  several reports for the same date - one per client, or several for the same client - and
+  each keeps its own platform split. Every total (dashboards, reporting, the performance
+  tracker comparison, sourcing analytics, the admin report list) sums all rows, so nothing
+  is overwritten. `ix_daily_reports_employee_date` indexes the employee + date lookup.
+, seeded with the five platforms every form, table and chart uses: Naukri, Apna, LinkedIn, Careers, Others). "Indeed" was retired in favour of Apna; the old free-text options (Referral, Company Website, Other) fold into Others. `SourcingPlatforms` is the single source of those names on the backend (`/api/admin/sourcing` serves the analytics).
 - `daily_reports.sourcing_platform` and `daily_report_platform_counts` (counts must reconcile with `candidates_sourced`).
 - `feedback.sourcing_platform` and `feedback.sourced_date`.
 - `clients.compensation_type` (`OFFERED_PER_CANDIDATE` or `SALARY_BASED`) with `clients.compensation_value`; the old `budget_per_candidate` column is kept for existing rows but is no longer part of the client form.

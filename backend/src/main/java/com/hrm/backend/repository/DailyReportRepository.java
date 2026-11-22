@@ -33,17 +33,13 @@ public interface DailyReportRepository extends JpaRepository<DailyReport, Long> 
     // Reports by date
     List<DailyReport> findByReportDate(LocalDate reportDate);
 
-    // Employee reports within date range
+    // Employee reports within date range. An employee may file several reports for the
+    // same day (one per client, or a correction alongside the original), so every query
+    // here returns a list and callers must sum the rows they care about.
     List<DailyReport> findByEmployeeEmployeeIdAndReportDateBetween(
             Long employeeId,
             LocalDate startDate,
             LocalDate endDate
-    );
-
-    // Check duplicate report for employee and date
-    Optional<DailyReport> findByEmployeeEmployeeIdAndReportDate(
-            Long employeeId,
-            LocalDate reportDate
     );
 
     // Reports of the administrator's whole company (shared records)
