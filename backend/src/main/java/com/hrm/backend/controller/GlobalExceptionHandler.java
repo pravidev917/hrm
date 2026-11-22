@@ -9,10 +9,13 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -64,6 +67,43 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 
+    /**
+     * Neither an unknown URL nor a wrong verb is a server failure: answer 404 and 405.
+     * Both used to fall through to the catch-all and be reported as 500, which made a
+     * typo in a path look like a backend crash.
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleNoResource(NoResourceFoundException exception) {
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(Map.of("message", "No endpoint matches this path."));
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<Map<String, Object>> handleMethodNotSupported(
+            HttpRequestMethodNotSupportedException exception) {
+
+        String allowed = exception.getSupportedHttpMethods() == null
+                ? ""
+                : exception.getSupportedHttpMethods().toString();
+
+        return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+                .body(Map.of(
+                        "message",
+                        allowed.isEmpty()
+                                ? "This method is not allowed on this endpoint."
+                                : "This method is not allowed on this endpoint. Use " + allowed + "."));
+    }
+
+    /** A request body sent as text/plain instead of JSON. */
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<Map<String, Object>> handleUnsupportedMediaType(
+            HttpMediaTypeNotSupportedException exception) {
+
+        return ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+                .body(Map.of("message", "Send the request body as application/json."));
+    }
+
     /** Malformed JSON, wrong enum/date formats in query parameters. */
     @ExceptionHandler({
             HttpMessageNotReadableException.class,
@@ -83,9 +123,13 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleIllegalArgumentException(
             IllegalArgumentException exception) {
 
+        // A clash with existing data (overlap, duplicate) is a conflict, not bad input;
+        // statusFor keeps 400 for everything else.
+        String message = messageOf(exception, "Invalid request");
+
         return ResponseEntity
-                .status(HttpStatus.BAD_REQUEST)
-                .body(Map.of("message", messageOf(exception, "Invalid request")));
+                .status(statusFor(message))
+                .body(Map.of("message", message));
     }
 
     /**
@@ -176,7 +220,8 @@ public class GlobalExceptionHandler {
         if (lower.contains("not found")) {
             return HttpStatus.NOT_FOUND;
         }
-        if (lower.contains("already exists") || lower.contains("duplicate")) {
+        if (lower.contains("already exists") || lower.contains("duplicate")
+                || lower.contains("overlap")) {
             return HttpStatus.CONFLICT;
         }
         if (lower.contains("not approved") || lower.contains("not active")) {

@@ -75,11 +75,15 @@ public class ClientService {
     }
 
     private boolean sameCompany(Client client, Long adminId) {
-        if (client.getAdmin() == null || client.getAdmin().getCompany() == null) {
-            return false;
-        }
-        Long clientCompany = client.getAdmin().getCompany().getCompanyId();
-        return clientCompany != null && clientCompany.equals(companyScope.companyIdOf(adminId));
+
+        // Compare through a projection instead of client.getAdmin().getCompany():
+        // those are lazy proxies, and this method is called from read paths whose
+        // transaction has already closed (open-in-view is off), which raised
+        // LazyInitializationException and a 500 on GET /api/admin/clients/{id}.
+        Long clientCompany = repository.findCompanyIdByClientId(client.getClientId());
+        Long adminCompany = companyScope.companyIdOf(adminId);
+
+        return clientCompany != null && clientCompany.equals(adminCompany);
     }
 
     // Create client

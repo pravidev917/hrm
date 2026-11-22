@@ -20,17 +20,36 @@ public interface LeaveManagementRepository
     // EMPLOYEE LEAVE HISTORY
     // --------------------------------------------------
 
-    List<LeaveManagement>
-    findByEmployeeEmployeeIdOrderByStartDateDesc(Long employeeId);
+    /**
+     * Employee history. The employee and the reviewing admin are fetch-joined because
+     * the response DTO is built outside the transaction (controllers map entities).
+     */
+    @Query("""
+            SELECT l FROM LeaveManagement l
+            JOIN FETCH l.employee e
+            LEFT JOIN FETCH l.approvedBy
+            WHERE e.employeeId = :employeeId
+            ORDER BY l.startDate DESC
+            """)
+    List<LeaveManagement> findByEmployeeEmployeeIdOrderByStartDateDesc(
+            @Param("employeeId") Long employeeId);
 
     // --------------------------------------------------
     // ADMIN LEAVE HISTORY
     // --------------------------------------------------
 
-    /** Leave requests of the administrator's whole company (shared records). */
+    /**
+     * Leave requests of the administrator's whole company (shared records).
+     *
+     * employee and approvedBy are fetch-joined: LeaveManagementController builds the
+     * response DTO after the transaction closes, and open-in-view is off, so a lazy
+     * proxy there used to raise LazyInitializationException (500) on this endpoint.
+     */
     @Query("""
             SELECT l FROM LeaveManagement l
-            WHERE l.employee.admin.company.companyId =
+            JOIN FETCH l.employee e
+            LEFT JOIN FETCH l.approvedBy
+            WHERE e.admin.company.companyId =
                   (SELECT adm.company.companyId FROM Admin adm WHERE adm.adminId = :adminId)
             ORDER BY l.startDate DESC
             """)

@@ -42,6 +42,19 @@ public interface ClientRepository extends JpaRepository<Client, Long> {
 
     List<Client> findByClientNameContainingIgnoreCase(String clientName);
 
+    /**
+     * Company of the administrator who created the client, read as one scalar.
+     *
+     * Deliberately not client.getAdmin().getCompany(): those associations are lazy and
+     * the ownership check also runs on read paths that outlive their transaction, which
+     * raised LazyInitializationException and turned GET /api/admin/clients/{id} into 500.
+     */
+    @Query("""
+            SELECT c.admin.company.companyId FROM Client c
+            WHERE c.clientId = :clientId
+            """)
+    Long findCompanyIdByClientId(@Param("clientId") Long clientId);
+
     /** Client codes are unique within a company, whoever created them. */
     @Query("""
             SELECT COUNT(c) > 0 FROM Client c

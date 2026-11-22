@@ -44,3 +44,6 @@ backend/target/
 build/
 handoff/
 /frontend.zip
+
+# Local audit scripts (probe every endpoint, assert business rules)
+.audit/
