@@ -23,10 +23,10 @@ Date range, employee, client, position and sourcing platform. The employee dashb
 
 `V5__reporting_candidate_tracking.sql` adds:
 
-- `sourcing_platforms` (company-scoped, seeded with LinkedIn, Naukri, Indeed, Referral, Company Website, Other per company).
+- `sourcing_platforms` (company-scoped, seeded with the five platforms every form, table and chart uses: Naukri, Apna, LinkedIn, Careers, Others). "Indeed" was retired in favour of Apna; the old free-text options (Referral, Company Website, Other) fold into Others. `SourcingPlatforms` is the single source of those names on the backend (`/api/admin/sourcing` serves the analytics).
 - `daily_reports.sourcing_platform` and `daily_report_platform_counts` (counts must reconcile with `candidates_sourced`).
 - `feedback.sourcing_platform` and `feedback.sourced_date`.
-- `clients.budget_per_candidate` (backfilled from `salary_offered × percentage_per_candidate ÷ 100`).
+- `clients.compensation_type` (`OFFERED_PER_CANDIDATE` or `SALARY_BASED`) with `clients.compensation_value`; the old `budget_per_candidate` column is kept for existing rows but is no longer part of the client form.
 - `employee_salary_history` (one row per employee per effective month, backfilled from the current salary at the employee's creation month).
 
 The migration is additive and guarded. Existing rows keep their values; historical blank platforms and dates remain blank and are labelled Unknown in reports. Administrators can add or disable platform options under **Office settings**; disabling an option does not change existing records.
