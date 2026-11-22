@@ -23,14 +23,8 @@ const STATUS_OPTIONS = [
   { value: 'DROPPED', label: 'Dropped (legacy)' },
 ]
 
-const FALLBACK_PLATFORMS = [
-  'LinkedIn',
-  'Naukri',
-  'Indeed',
-  'Referral',
-  'Company Website',
-  'Other',
-]
+  // The five platforms the business uses, in the same order everywhere.
+  const FALLBACK_PLATFORMS = ['Naukri', 'Apna', 'LinkedIn', 'Careers', 'Others']
 
 const YES_NO = [
   { value: 'true', label: 'Yes' },

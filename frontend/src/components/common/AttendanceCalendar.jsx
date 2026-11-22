@@ -10,7 +10,7 @@ import Icon from './Icon'
  *   absent          (slate)  — the employee marked ABSENT
  *   approved-wfh    (blue)   — an APPROVED WFH request covers the date
  *   not-marked      (orange) — a working day in the past with no record
- *   weekend/future  (neutral) — nothing expected
+ *   sunday/future   (neutral) — nothing expected
  */
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -96,8 +96,8 @@ export default function AttendanceCalendar({
       const d = new Date(cursor.year, cursor.month, day)
       const iso = toISO(d)
       if (iso >= today) continue
-      const dow = d.getDay()
-      if (dow === 0 || dow === 6) continue
+      // Saturday is a working day here: only Sunday is a weekly holiday.
+      if (d.getDay() === 0) continue
       if (!byDate.has(iso) && !leaveDates.has(iso)) missing += 1
     }
     return { present, absent, leave, wfh, missing }
@@ -110,8 +110,7 @@ export default function AttendanceCalendar({
     if (rec?.status === 'PRESENT') return 'present'
     if (rec?.status === 'ABSENT') return 'absent'
     if (wfhDates.has(iso)) return 'wfh'
-    const dow = date.getDay()
-    if (iso < today && dow !== 0 && dow !== 6) return 'missing'
+      if (iso < today && date.getDay() !== 0) return 'missing'
     return 'none'
   }
 

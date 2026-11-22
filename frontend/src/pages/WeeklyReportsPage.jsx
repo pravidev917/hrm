@@ -9,6 +9,7 @@ import PageHeader from '../components/common/PageHeader'
 import DataTable from '../components/common/DataTable'
 import FormModal from '../components/common/FormModal'
 import ConfirmDialog from '../components/common/ConfirmDialog'
+import StatusBadge from '../components/common/StatusBadge'
 import { ErrorState, Spinner } from '../components/common/Feedback'
 import Icon from '../components/common/Icon'
 import { SearchInput, Toolbar } from '../components/common/Toolbar'
@@ -24,6 +25,22 @@ const BASE_FIELDS = [
   { name: 'finalSelections', label: 'Final selections', ...COUNT },
   { name: 'joined', label: 'Joined', ...COUNT },
   { name: 'revenueGenerated', label: 'Revenue generated', type: 'number', min: 0, step: '0.01', required: true },
+  { name: 'candidateName', label: 'Candidate name', type: 'text', half: true, hint: 'The candidate this week’s numbers are about' },
+  { name: 'position', label: 'Position', type: 'text', half: true, hint: 'Leave empty to use the client’s position' },
+  {
+    name: 'interviewStatus',
+    label: 'Interview status',
+    type: 'select',
+    half: true,
+    options: [
+      { value: '', label: 'Not set' },
+      { value: 'INTERVIEW_SCHEDULED', label: 'Interview scheduled' },
+      { value: 'SELECTED', label: 'Selected' },
+      { value: 'JOINED', label: 'Joined' },
+      { value: 'REJECTED', label: 'Rejected' },
+      { value: 'ON_HOLD', label: 'On hold' },
+    ],
+  },
 ]
 
 export default function WeeklyReportsPage() {
@@ -62,7 +79,15 @@ export default function WeeklyReportsPage() {
   const columns = [
     { key: 'weekStartDate', label: 'Week', sortable: true, render: (r) => <>{formatDate(r.weekStartDate)} – {formatDate(r.weekEndDate)}</> },
     { key: 'clientName', label: 'Client', sortable: true, render: (r) => r.clientName || '—' },
-    ...(isAdmin ? [{ key: 'employeeName', label: 'Employee', sortable: true, render: (r) => <strong>{r.employeeName}</strong> }] : []),
+    { key: 'employeeName', label: 'Employee name', sortable: true, render: (r) => <strong>{r.employeeName}</strong> },
+    { key: 'candidateName', label: 'Candidate name', sortable: true, render: (r) => r.candidateName || '—' },
+    { key: 'position', label: 'Position', sortable: true, render: (r) => r.position || '—' },
+    {
+      key: 'interviewStatus',
+      label: 'Interview status',
+      sortable: true,
+      render: (r) => (r.interviewStatus ? <StatusBadge value={r.interviewStatus} /> : '—'),
+    },
     { key: 'profilesSubmitted', label: 'Profiles', sortable: true, align: 'right' },
     { key: 'interviewsScheduled', label: 'Interviews', sortable: true, align: 'right' },
     { key: 'finalSelections', label: 'Selections', sortable: true, align: 'right' },
@@ -89,6 +114,9 @@ export default function WeeklyReportsPage() {
       finalSelections: Number(v.finalSelections),
       joined: Number(v.joined),
       revenueGenerated: Number(v.revenueGenerated),
+      candidateName: v.candidateName?.trim() || null,
+      position: v.position?.trim() || null,
+      interviewStatus: v.interviewStatus || null,
     }
     if (form.report) {
       await api.update(form.report.weeklyReportId, body)
@@ -147,7 +175,18 @@ export default function WeeklyReportsPage() {
                   reportDate: form.report.weekStartDate,
                   clientId: form.report.clientId ? String(form.report.clientId) : '',
                 }
-              : { reportDate: todayISO(), clientId: '', profilesSubmitted: 0, interviewsScheduled: 0, finalSelections: 0, joined: 0, revenueGenerated: 0 }
+              : {
+                  reportDate: todayISO(),
+                  clientId: '',
+                  profilesSubmitted: 0,
+                  interviewsScheduled: 0,
+                  finalSelections: 0,
+                  joined: 0,
+                  revenueGenerated: 0,
+                  candidateName: '',
+                  position: '',
+                  interviewStatus: '',
+                }
           }
           submitLabel={form.report ? 'Save changes' : 'Submit report'}
           onSubmit={save}

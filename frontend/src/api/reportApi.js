@@ -15,6 +15,13 @@ export const employeeDailyReportApi = {
 
 export const adminDailyReportApi = {
   list: () => unwrap(apiClient.get('/api/admin/reports')),
+  // "Add New": an administrator files a report on behalf of one of their employees.
+  create: (employeeId, clientId, body) =>
+    unwrap(
+      apiClient.post('/api/admin/reports', body, {
+        params: { employeeId, clientId },
+      }),
+    ),
 }
 
 export const employeeWeeklyReportApi = {

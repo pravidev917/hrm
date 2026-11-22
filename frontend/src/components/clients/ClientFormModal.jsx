@@ -2,10 +2,14 @@ import { clientApi } from '../../api/adminApi'
 import FormModal from '../common/FormModal'
 
 /**
- * Client create/edit dialog. The eleven fields are in the order the client form
- * specifies and are sent with their own names: Client ID, Vendor, BDM name,
+ * Client create/edit dialog. Fields, in form order: Client ID, Vendor, BDM name,
  * Client name, Position, Contact number, Client HR name, Number of positions,
- * Salary offered, Percentage per candidate, Tax.
+ * Salary offered, Compensation type + Compensation value, Percentage per candidate,
+ * Tax.
+ *
+ * Compensation replaces the old "budget per candidate" figure: a client either pays a
+ * fixed amount per candidate placed (OFFERED_PER_CANDIDATE) or carries a salary
+ * (SALARY_BASED). The value always belongs to the type chosen next to it.'
  *
  * Legacy counters (profiles submitted, interviews, selections) are not part of
  * this form; the backend keeps whatever is already stored for them.
@@ -20,7 +24,28 @@ const FIELDS = [
   { name: 'hrName', label: 'Client HR name', maxLength: 100, half: true },
   { name: 'numberOfPositions', label: 'Number of positions', type: 'number', min: 0, step: 1, half: true },
   { name: 'salaryOffered', label: 'Salary offered', type: 'number', min: 0, step: '0.01', half: true, placeholder: '650000' },
-  { name: 'budgetPerCandidate', label: 'Budget per candidate', type: 'number', min: 0, step: '0.01', half: true, hint: 'Capacity per opening, not revenue' },
+  {
+    name: 'compensationType',
+    label: 'Compensation type',
+    type: 'select',
+    half: true,
+    required: true,
+    options: [
+      { value: 'OFFERED_PER_CANDIDATE', label: 'Offered per candidate' },
+      { value: 'SALARY_BASED', label: 'Salary based' },
+    ],
+    hint: 'How this client pays for a placement',
+  },
+  {
+    name: 'compensationValue',
+    label: 'Compensation value',
+    type: 'number',
+    min: 0,
+    step: '0.01',
+    half: true,
+    placeholder: '50000',
+    hint: 'Amount per candidate, or the annual salary when salary based',
+  },
   { name: 'percentagePerCandidate', label: 'Percentage per candidate', type: 'number', min: 0, max: 100, step: '0.01', half: true, hint: '0–100' },
   { name: 'tax', label: 'Tax', type: 'number', min: 0, max: 100, step: '0.01', half: true, hint: 'Percentage, 0–100' },
 ]
@@ -48,9 +73,15 @@ function validate(v) {
   if (String(v.percentagePerCandidate ?? '').trim() && !TWO_DECIMALS.test(String(v.percentagePerCandidate).trim())) {
     errors.percentagePerCandidate = 'Use a number with at most 2 decimals'
   }
-  if (String(v.budgetPerCandidate ?? '').trim() && !TWO_DECIMALS.test(String(v.budgetPerCandidate).trim())) {
-    errors.budgetPerCandidate = 'Use a number with at most 2 decimals'
+  if (String(v.compensationValue ?? '').trim() && !TWO_DECIMALS.test(String(v.compensationValue).trim())) {
+    errors.compensationValue = 'Use a number with at most 2 decimals'
+  } else if (v.compensationType === 'SALARY_BASED' && !String(v.compensationValue ?? '').trim()) {
+    errors.compensationValue = 'Enter the annual salary for a salary based client'
+  } else if (v.compensationType === 'SALARY_BASED' && Number(v.compensationValue) <= 0) {
+    errors.compensationValue = 'Salary based compensation must be greater than zero'
   }
+
+  if (!String(v.compensationType ?? '').trim()) errors.compensationType = 'Choose a compensation type'
   if (String(v.tax ?? '').trim() && !TWO_DECIMALS.test(String(v.tax).trim())) {
     errors.tax = 'Use a number with at most 2 decimals'
   }
@@ -82,7 +113,8 @@ const toPayload = (v) => ({
   hrName: text(v.hrName),
   numberOfPositions: num(v.numberOfPositions),
   salaryOffered: num(v.salaryOffered),
-  budgetPerCandidate: num(v.budgetPerCandidate),
+  compensationType: text(v.compensationType) ?? 'OFFERED_PER_CANDIDATE',
+  compensationValue: num(v.compensationValue),
   percentagePerCandidate: num(v.percentagePerCandidate),
   tax: num(v.tax),
 })

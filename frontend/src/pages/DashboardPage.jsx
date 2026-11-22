@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { adminDashboardApi } from '../api/dashboardApi'
 import { employeePortalApi } from '../api/employeeApi'
 import { useAuth } from '../hooks/useAuth'
@@ -13,7 +13,7 @@ import { EmptyState, ErrorState } from '../components/common/Feedback'
 import Icon from '../components/common/Icon'
 import EmployeeFormModal from '../components/employees/EmployeeFormModal'
 import NotesPanel from '../components/common/NotesPanel'
-import ReportingPanel from '../components/common/ReportingPanel'
+import SourcingAnalytics from '../components/common/SourcingAnalytics'
 import { notesApi } from '../api/notesApi'
 import { formatDate, formatMoney, formatNumber, todayISO } from '../utils/format'
 
@@ -24,6 +24,7 @@ function monthLabel(month) {
 }
 
 export default function DashboardPage() {
+  const navigate = useNavigate()
   const { user, isAdmin } = useAuth()
   const firstName = user.name?.split(' ')[0] ?? 'there'
   const [adding, setAdding] = useState(false)
@@ -46,7 +47,7 @@ export default function DashboardPage() {
           ) : null
         }
       />
-      {isAdmin ? <AdminDashboard onAddEmployee={() => setAdding(true)} /> : <EmployeeDashboard />}
+      {isAdmin ? <AdminDashboard onAddReport={() => navigate('/reports?new=1')} /> : <EmployeeDashboard />}
       {adding && <AddEmployeeDialog onClose={() => setAdding(false)} />}
     </>
   )
@@ -65,7 +66,7 @@ function AddEmployeeDialog({ onClose }) {
 
 /* ------------------------------- Admin ------------------------------- */
 
-function AdminDashboard({ onAddEmployee }) {
+function AdminDashboard({ onAddReport }) {
   const { data, loading, error, reload } = useFetch(adminDashboardApi.summary)
 
   if (loading) {
@@ -91,7 +92,7 @@ function AdminDashboard({ onAddEmployee }) {
   }
   if (error) return <ErrorState message={error} onRetry={reload} />
 
-  const { people, attendanceToday, leaves, dailyReports, monthlyPerformance, pendingLeaveQueue, recentEmployees } = data
+  const { people, attendanceToday, leaves, monthlyPerformance, recentEmployees } = data
 
   return (
     <>
@@ -129,224 +130,61 @@ function AdminDashboard({ onAddEmployee }) {
         />
       </div>
 
-      {/* The four requested detail cards. */}
-      <div className="grid-2">
-        <section className="card">
-          <div className="card-header">
-            <div>
-              <h2>Leave details</h2>
-              <p className="muted small">All requests, plus this month&apos;s decisions.</p>
-            </div>
-            <Link to="/leaves" className="small">
-              Open →
-            </Link>
-          </div>
-          <div className="mini-grid">
-            <div className="mini-stat">
-              <span className="mini-label">Total requests</span>
-              <span className="mini-value">{formatNumber(leaves.totalRequests)}</span>
-            </div>
-            <div className="mini-stat">
-              <span className="mini-label">Pending</span>
-              <span className={`mini-value${leaves.pending > 0 ? ' tone-warn' : ''}`}>{formatNumber(leaves.pending)}</span>
-            </div>
-            <div className="mini-stat">
-              <span className="mini-label">Approved</span>
-              <span className="mini-value tone-success">{formatNumber(leaves.approvedRequests)}</span>
-            </div>
-            <div className="mini-stat">
-              <span className="mini-label">Rejected</span>
-              <span className="mini-value tone-danger">{formatNumber(leaves.rejectedRequests)}</span>
-            </div>
-          </div>
-          <p className="muted small">
-            This month: {leaves.approvedThisMonth} approved · {leaves.rejectedThisMonth} rejected ·{' '}
-            {formatMoney(leaves.approvedDaysThisMonth)} approved days
-          </p>
-        </section>
+      {/* Sourcing analytics: counted from daily reports, range first report -> today. */}
+      <SourcingAnalytics onAddNew={onAddReport} />
 
-        <section className="card">
-          <div className="card-header">
-            <div>
-              <h2>Attendance details</h2>
-              <p className="muted small">{formatDate(data.asOfDate)}</p>
-            </div>
-            <Link to="/attendance" className="small">
-              Open →
-            </Link>
+      {/* Monthly performance: weekly revenue summed per employee. */}
+      <section className="card">
+        <div className="card-header">
+          <div>
+            <h2>Monthly performance</h2>
+            <p className="muted small">
+              {monthLabel(monthlyPerformance.month)} · weekly revenue summed per employee
+            </p>
           </div>
-          <div className="mini-grid">
-            <div className="mini-stat">
-              <span className="mini-label">Present</span>
-              <span className="mini-value tone-success">{formatNumber(attendanceToday.presentToday)}</span>
-            </div>
-            <div className="mini-stat">
-              <span className="mini-label">Absent</span>
-              <span className="mini-value tone-danger">{formatNumber(attendanceToday.absentToday)}</span>
-            </div>
-            <div className="mini-stat">
-              <span className="mini-label">Not marked</span>
-              <span className="mini-value">{formatNumber(attendanceToday.notMarkedToday)}</span>
-            </div>
-            <div className="mini-stat">
-              <span className="mini-label">Late</span>
-              <span className="mini-value muted small">
-                {attendanceToday.lateTracked ? formatNumber(attendanceToday.lateToday ?? 0) : 'Not tracked'}
-              </span>
-            </div>
+          <Link to="/performance-tracker" className="small">
+            Full report →
+          </Link>
+        </div>
+        <div className="mini-grid">
+          <div className="mini-stat">
+            <span className="mini-label">Total revenue</span>
+            <span className="mini-value tone-success">{formatMoney(monthlyPerformance.totalRevenue)}</span>
           </div>
-          <div className="progress" role="img" aria-label={`${attendanceToday.presencePercent}% of the team is present`}>
-            <span className="progress-bar" style={{ width: `${Math.min(100, attendanceToday.presencePercent)}%` }} />
+          <div className="mini-stat">
+            <span className="mini-label">Employees earning</span>
+            <span className="mini-value">{formatNumber(monthlyPerformance.employeesWithRevenue)}</span>
           </div>
-          <p className="muted small">{attendanceToday.presencePercent}% of active employees marked present.</p>
-        </section>
-
-        <section className="card">
-          <div className="card-header">
-            <div>
-              <h2>Daily reports</h2>
-              <p className="muted small">{formatDate(dailyReports.date)}</p>
-            </div>
-            <Link to="/reports" className="small">
-              Open →
-            </Link>
+          <div className="mini-stat">
+            <span className="mini-label">Top employee</span>
+            <span className="mini-value small">{monthlyPerformance.topEmployeeName ?? '—'}</span>
           </div>
-          <div className="mini-grid">
-            <div className="mini-stat">
-              <span className="mini-label">Submitted today</span>
-              <span className="mini-value">{formatNumber(dailyReports.reportsToday)}</span>
-            </div>
-            <div className="mini-stat">
-              <span className="mini-label">Employees reporting</span>
-              <span className="mini-value">
-                {dailyReports.employeesSubmittedToday}
-                <span className="muted small"> / {people.activeEmployees}</span>
-              </span>
-            </div>
-            <div className="mini-stat">
-              <span className="mini-label">Missing</span>
-              <span className={`mini-value${dailyReports.employeesMissingToday > 0 ? ' tone-warn' : ''}`}>
-                {formatNumber(dailyReports.employeesMissingToday)}
-              </span>
-            </div>
-            <div className="mini-stat">
-              <span className="mini-label">Resumes today</span>
-              <span className="mini-value tone-success">{formatNumber(dailyReports.resumesToday)}</span>
-            </div>
+          <div className="mini-stat">
+            <span className="mini-label">Top revenue</span>
+            <span className="mini-value small">{formatMoney(monthlyPerformance.topEmployeeRevenue)}</span>
           </div>
-          <p className="muted small">
-            This month: {formatNumber(dailyReports.reportsThisMonth)} reports ·{' '}
-            {formatNumber(dailyReports.resumesThisMonth)} resumes
-          </p>
-        </section>
-
-        <section className="card">
-          <div className="card-header">
-            <div>
-              <h2>Monthly performance</h2>
-              <p className="muted small">
-                {monthLabel(monthlyPerformance.month)} · weekly revenue summed per employee
-              </p>
-            </div>
-            <Link to="/performance-tracker" className="small">
-              Full report →
-            </Link>
-          </div>
-          <div className="mini-grid">
-            <div className="mini-stat">
-              <span className="mini-label">Total revenue</span>
-              <span className="mini-value tone-success">{formatMoney(monthlyPerformance.totalRevenue)}</span>
-            </div>
-            <div className="mini-stat">
-              <span className="mini-label">Employees earning</span>
-              <span className="mini-value">{formatNumber(monthlyPerformance.employeesWithRevenue)}</span>
-            </div>
-            <div className="mini-stat">
-              <span className="mini-label">Top employee</span>
-              <span className="mini-value small">{monthlyPerformance.topEmployeeName ?? '—'}</span>
-            </div>
-            <div className="mini-stat">
-              <span className="mini-label">Top revenue</span>
-              <span className="mini-value small">{formatMoney(monthlyPerformance.topEmployeeRevenue)}</span>
-            </div>
-          </div>
-          {monthlyPerformance.rows.length === 0 ? (
-            <p className="muted small">No weekly revenue recorded for this month yet.</p>
-          ) : (
-            <ul className="list compact">
-              {[...monthlyPerformance.rows]
-                .sort((a, b) => (Number(b.revenue) || 0) - (Number(a.revenue) || 0))
-                .slice(0, 4)
-                .map((row) => (
-                  <li key={row.employeeId}>
-                    <div style={{ minWidth: 0 }}>
-                      <strong>{row.employeeName}</strong>
-                      <div className="muted small">
-                        {row.weeksCounted} week{row.weeksCounted === 1 ? '' : 's'}
-                      </div>
-                    </div>
-                    <span>{formatMoney(row.revenue)}</span>
-                  </li>
-                ))}
-            </ul>
-          )}
-        </section>
-      </div>
-
-      <div className="grid-2">
-        <section className="card">
-          <div className="card-header">
-            <h2>Review queue</h2>
-            <Link to="/leaves" className="small">
-              All requests →
-            </Link>
-          </div>
-          {pendingLeaveQueue.length === 0 ? (
-            <EmptyState icon="check-circle" title="Nothing to review" hint="No leave requests are waiting for your decision." />
-          ) : (
-            <ul className="list">
-              {pendingLeaveQueue.map((l) => (
-                <li key={l.leaveId}>
+        </div>
+        {monthlyPerformance.rows.length === 0 ? (
+          <p className="muted small">No weekly revenue recorded for this month yet.</p>
+        ) : (
+          <ul className="list compact">
+            {[...monthlyPerformance.rows]
+              .sort((a, b) => (Number(b.revenue) || 0) - (Number(a.revenue) || 0))
+              .slice(0, 4)
+              .map((row) => (
+                <li key={row.employeeId}>
                   <div style={{ minWidth: 0 }}>
-                    <strong>{l.employeeName}</strong>
+                    <strong>{row.employeeName}</strong>
                     <div className="muted small">
-                      {formatDate(l.startDate)}
-                      {l.endDate !== l.startDate && ` – ${formatDate(l.endDate)}`} · {l.numberOfDays} day
-                      {Number(l.numberOfDays) === 1 ? '' : 's'} · {l.type}
+                      {row.weeksCounted} week{row.weeksCounted === 1 ? '' : 's'}
                     </div>
                   </div>
-                  <Link to="/leaves" className="btn btn-sm btn-primary">
-                    Review
-                  </Link>
+                  <span>{formatMoney(row.revenue)}</span>
                 </li>
               ))}
-            </ul>
-          )}
-        </section>
-
-        <section className="card">
-          <div className="card-header">
-            <h2>Quick actions</h2>
-          </div>
-          <div className="quick-actions">
-            <button type="button" className="btn btn-block" onClick={onAddEmployee}>
-              <Icon name="plus" size={16} /> Quick add employee
-            </button>
-            <Link to="/clients?new=1" className="btn btn-block">
-              <Icon name="briefcase" size={16} /> Quick add client
-            </Link>
-            <Link to="/leaves" className="btn btn-block">
-              <Icon name="calendar" size={16} /> Review leave
-            </Link>
-            <Link to="/reports" className="btn btn-block">
-              <Icon name="file" size={16} /> Team daily reports
-            </Link>
-            <Link to="/weekly-reports" className="btn btn-block">
-              <Icon name="chart" size={16} /> Weekly reports
-            </Link>
-          </div>
-        </section>
-      </div>
+          </ul>
+        )}
+      </section>
 
       <div className="grid-2">
         <NotesPanel
@@ -360,7 +198,10 @@ function AdminDashboard({ onAddEmployee }) {
 
         <section className="card">
           <div className="card-header">
-            <h2>Newest team members</h2>
+            <div>
+              <h2>Newest team members</h2>
+              <p className="muted small">Employees you added most recently.</p>
+            </div>
             <Link to="/employees" className="small">
               Manage team →
             </Link>
@@ -388,70 +229,6 @@ function AdminDashboard({ onAddEmployee }) {
           )}
         </section>
       </div>
-
-      <div className="grid-3">
-        <section className="card">
-          <h2>This month</h2>
-          <dl className="details">
-            <div>
-              <dt>Leave approved</dt>
-              <dd>
-                {leaves.approvedThisMonth} · {formatMoney(leaves.approvedDaysThisMonth)} days
-              </dd>
-            </div>
-            <div>
-              <dt>Leave rejected</dt>
-              <dd>{leaves.rejectedThisMonth}</dd>
-            </div>
-            <div>
-              <dt>Requests started</dt>
-              <dd>{leaves.requestsThisMonth}</dd>
-            </div>
-          </dl>
-        </section>
-        <section className="card">
-          <h2>Attendance today</h2>
-          <dl className="details">
-            <div>
-              <dt>Present</dt>
-              <dd>{attendanceToday.presentToday}</dd>
-            </div>
-            <div>
-              <dt>Absent</dt>
-              <dd>{attendanceToday.absentToday}</dd>
-            </div>
-            <div>
-              <dt>Not marked</dt>
-              <dd>{attendanceToday.notMarkedToday}</dd>
-            </div>
-          </dl>
-          <Link to="/attendance" className="small">
-            Open attendance →
-          </Link>
-        </section>
-        <section className="card">
-          <h2>Reports today</h2>
-          <dl className="details">
-            <div>
-              <dt>Reports</dt>
-              <dd>{dailyReports.reportsToday}</dd>
-            </div>
-            <div>
-              <dt>Resumes</dt>
-              <dd>{dailyReports.resumesToday}</dd>
-            </div>
-            <div>
-              <dt>Not reported</dt>
-              <dd>{dailyReports.employeesMissingToday}</dd>
-            </div>
-          </dl>
-          <Link to="/performance-tracker" className="small">
-            Open the tracker →
-          </Link>
-        </section>
-      </div>
-
-      <ReportingPanel />
     </>
   )
 }
@@ -606,8 +383,6 @@ function EmployeeDashboard() {
           </div>
         </dl>
       </section>
-
-      <ReportingPanel />
     </>
   )
 }

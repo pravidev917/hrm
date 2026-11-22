@@ -13,6 +13,7 @@ const TONES = {
   REJECTED: 'red',
   ABSENT: 'red',
   ON_LEAVE: 'blue',
+  ON_HOLD: 'amber',
   SOURCED: 'gray',
   INTERVIEW_SCHEDULED: 'blue',
   INTERVIEW_ATTENDED: 'amber',

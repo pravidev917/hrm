@@ -80,8 +80,20 @@ export default function ClientsPage() {
       render: (c) => money(c.salaryOffered),
     },
     {
+      key: 'compensationValue',
+      label: 'Compensation',
+      sortable: true,
+      align: 'right',
+      render: (c) =>
+        c.compensationValue == null
+          ? '—'
+          : `${money(c.compensationValue)} ${
+              c.compensationType === 'SALARY_BASED' ? 'salary' : 'per candidate'
+            }`,
+    },
+    {
       key: 'percentagePerCandidate',
-      label: 'Per candidate',
+      label: 'Per candidate %',
       sortable: true,
       align: 'right',
       render: (c) => percent(c.percentagePerCandidate),
@@ -123,6 +135,14 @@ export default function ClientsPage() {
     ['HR contact details', c.hrContactDetails],
     ['Number of positions', c.numberOfPositions == null ? null : formatNumber(c.numberOfPositions)],
     ['Salary offered', c.salaryOffered == null ? null : formatMoney(c.salaryOffered)],
+    [
+      'Compensation',
+      c.compensationValue == null
+        ? null
+        : `${formatMoney(c.compensationValue)} ${
+            c.compensationType === 'SALARY_BASED' ? '(salary based)' : '(offered per candidate)'
+          }`,
+    ],
     ['Percentage per candidate', c.percentagePerCandidate == null ? null : percent(c.percentagePerCandidate)],
     ['Tax', c.tax == null ? null : percent(c.tax)],
     ['Profiles submitted', c.profilesSubmitted == null ? null : formatNumber(c.profilesSubmitted)],

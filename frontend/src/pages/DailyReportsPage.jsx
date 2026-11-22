@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { adminDailyReportApi, employeeDailyReportApi } from '../api/reportApi'
 import { sourcingPlatformApi } from '../api/reportingApi'
 import { employeePortalApi } from '../api/employeeApi'
+import { adminEmployeeApi, clientApi } from '../api/adminApi'
 import { useAuth } from '../hooks/useAuth'
 import { useFetch } from '../hooks/useFetch'
 import { useToast } from '../hooks/useToast'
@@ -16,13 +18,30 @@ import { formatDate, formatNumber, matchesQuery, todayISO } from '../utils/forma
 
 const NUMBER = { type: 'number', min: 0, step: 1, half: true, required: true }
 
+/**
+ * The pipeline rule: every later stage comes out of the profiles that were sourced,
+ * so no single stage may be larger than "candidates sourced".
+ * 20 sourced / 15 submitted / 8 interviewed / 4 selected / 2 joined is valid;
+ * 10 sourced / 15 submitted is not.
+ */
 function validateReport(v, platforms = []) {
   const errors = {}
   if (!v.clientId) errors.clientId = 'Choose a client'
-  if (Number(v.connectedCount) > Number(v.candidatesContacted))
+  if (!v.employeeId && 'employeeId' in v) errors.employeeId = 'Choose an employee'
+
+  const sourced = Number(v.candidatesSourced) || 0
+  const submitted = Number(v.profilesSubmitted) || 0
+  const contacted = Number(v.candidatesContacted) || 0
+  const connected = Number(v.connectedCount) || 0
+
+  if (submitted > sourced)
+    errors.profilesSubmitted = `Profiles submitted (${submitted}) cannot be more than candidates sourced (${sourced})`
+  if (contacted > sourced)
+    errors.candidatesContacted = `Candidates contacted (${contacted}) cannot be more than candidates sourced (${sourced})`
+  if (connected > sourced)
+    errors.connectedCount = `Connected (${connected}) cannot be more than candidates sourced (${sourced})`
+  if (connected > contacted)
     errors.connectedCount = 'Connected cannot exceed candidates contacted'
-  if (Number(v.profilesSubmitted) > Number(v.candidatesSourced))
-    errors.profilesSubmitted = 'Profiles submitted cannot exceed candidates sourced'
 
   const platformTotal = platforms.reduce((sum, name) => sum + (Number(v[`platform:${name}`]) || 0), 0)
   if (platformTotal !== Number(v.candidatesSourced)) {
@@ -37,12 +56,13 @@ function validateReport(v, platforms = []) {
 export default function DailyReportsPage() {
   const { isAdmin } = useAuth()
   const toast = useToast()
+  const [searchParams, setSearchParams] = useSearchParams()
   const fetcher = useCallback(() => (isAdmin ? adminDailyReportApi.list() : employeeDailyReportApi.list()), [isAdmin])
   const { data, loading, error, reload } = useFetch(fetcher)
   const [query, setQuery] = useState('')
   const [client, setClient] = useState('')
   const [date, setDate] = useState('')
-  const [form, setForm] = useState(null)
+  const [form, setForm] = useState(searchParams.get('new') === '1' ? {} : null)
   const [removing, setRemoving] = useState(null)
 
   // Employee client options come from the backend (scoped to the employee's admin).
@@ -51,18 +71,41 @@ export default function DailyReportsPage() {
     const request = isAdmin ? sourcingPlatformApi.admin() : sourcingPlatformApi.employee()
     request
       .then((rows) => setPlatforms(rows.filter((p) => p.active).map((p) => p.name)))
-      .catch(() => setPlatforms(['LinkedIn', 'Naukri', 'Indeed', 'Referral', 'Company Website', 'Other']))
+      .catch(() => setPlatforms(['Naukri', 'Apna', 'LinkedIn', 'Careers', 'Others']))
   }, [isAdmin])
 
-  const [clients, setClients] = useState({ data: [], error: null, loading: !isAdmin })
+  const [clients, setClients] = useState({ data: [], error: null, loading: true })
   const loadClients = useCallback(() => {
-    if (isAdmin) return
-    employeePortalApi
-      .clients()
-      .then((rows) => setClients({ data: rows, error: null, loading: false }))
+    const request = isAdmin ? clientApi.list() : employeePortalApi.clients()
+    request
+      .then((rows) =>
+        setClients({
+          data: rows.filter((row) => (row.status ?? 'ACTIVE') === 'ACTIVE'),
+          error: null,
+          loading: false,
+        }),
+      )
       .catch((e) => setClients({ data: [], error: e, loading: false }))
   }, [isAdmin])
+
+  // Administrators can file a report for any active employee ("Add New").
+  const [employees, setEmployees] = useState([])
+  useEffect(() => {
+    if (!isAdmin) return
+    adminEmployeeApi
+      .list()
+      .then((rows) => setEmployees(rows.filter((row) => row.accountStatus === 'APPROVED')))
+      .catch(() => setEmployees([]))
+  }, [isAdmin])
   useEffect(loadClients, [loadClients])
+
+  // Arriving from the dashboard's "Add new" button opens the form once.
+  useEffect(() => {
+    if (searchParams.get('new') !== '1') return
+    const next = new URLSearchParams(searchParams)
+    next.delete('new')
+    setSearchParams(next, { replace: true })
+  }, [searchParams, setSearchParams])
 
   // Distinct clients already seen in reports (used as the admin filter).
   const clientsInReports = useMemo(() => {
@@ -108,6 +151,23 @@ export default function DailyReportsPage() {
   }))
 
   const fields = [
+    ...(isAdmin
+      ? [
+          {
+            name: 'employeeId',
+            label: 'Employee',
+            type: 'select',
+            options: employees.map((e) => ({
+              value: String(e.employeeId),
+              label: `${e.employeeName} · ${e.employeeCode || e.employeeId}`,
+            })),
+            required: true,
+            half: true,
+            placeholder: employees.length ? 'Select an employee…' : 'No active employees',
+            hint: employees.length ? undefined : 'Add an employee first — every report belongs to an employee.',
+          },
+        ]
+      : []),
     { name: 'reportDate', label: 'Report date', type: 'date', max: todayISO(), required: true, half: true },
     {
       name: 'clientId',
@@ -129,7 +189,13 @@ export default function DailyReportsPage() {
 
   const columns = [
     { key: 'reportDate', label: 'Date', sortable: true, render: (r) => formatDate(r.reportDate) },
-    ...(isAdmin ? [{ key: 'employeeName', label: 'Employee', sortable: true, render: (r) => <strong>{r.employeeName}</strong> }] : []),
+    ...(isAdmin
+      ? [
+          { key: 'employeeName', label: 'Employee name', sortable: true, render: (r) => <strong>{r.employeeName}</strong> },
+          { key: 'employeeCode', label: 'Employee ID', sortable: true, render: (r) => r.employeeCode || '—' },
+          { key: 'employeeDesignation', label: 'Designation', sortable: true, render: (r) => r.employeeDesignation || '—' },
+        ]
+      : []),
     { key: 'clientName', label: 'Client', sortable: true },
     {
       key: 'sourcingPlatform',
@@ -187,6 +253,9 @@ export default function DailyReportsPage() {
     if (form.report) {
       await employeeDailyReportApi.update(form.report.dailyReportId, v.clientId, body)
       toast.success('Report updated')
+    } else if (isAdmin) {
+      await adminDailyReportApi.create(v.employeeId, v.clientId, body)
+      toast.success('Report added for the employee')
     } else {
       await employeeDailyReportApi.create(v.clientId, body)
       toast.success('Report submitted')
@@ -212,17 +281,25 @@ export default function DailyReportsPage() {
             : 'Log your daily sourcing and submissions. One report per day.'
         }
         actions={
-          !isAdmin && (
-            <button
-              type="button"
-              className="btn btn-primary"
-              onClick={() => setForm({})}
-              disabled={clients.loading || clients.data.length === 0}
-              title={clients.data.length === 0 ? 'No active clients yet' : undefined}
-            >
-              <Icon name="plus" size={16} /> New report
-            </button>
-          )
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => setForm({})}
+            disabled={
+              clients.loading ||
+              clients.data.length === 0 ||
+              (isAdmin && employees.length === 0)
+            }
+            title={
+              clients.data.length === 0
+                ? 'No active clients yet'
+                : isAdmin && employees.length === 0
+                  ? 'No active employees yet'
+                  : undefined
+            }
+          >
+            <Icon name="plus" size={16} /> {isAdmin ? 'Add new' : 'New report'}
+          </button>
         }
       />
 
@@ -298,8 +375,13 @@ export default function DailyReportsPage() {
           fields={fields}
           initialValues={{
             ...(form.report
-              ? { ...form.report, clientId: String(form.report.clientId) }
+              ? {
+                  ...form.report,
+                  clientId: String(form.report.clientId),
+                  employeeId: String(form.report.employeeId ?? ''),
+                }
               : {
+                  ...(isAdmin ? { employeeId: '' } : {}),
                   reportDate: todayISO(),
                   clientId: '',
                   profilesSubmitted: 0,
