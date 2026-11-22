@@ -5,12 +5,15 @@ React + Vite single-page app for the HRM Spring Boot backend (`../backend`).
 ## Run
 
 ```bash
-cp .env.example .env.local   # optional; defaults to http://localhost:8080
+cp .env.example .env         # local browser-safe Vite settings
 npm ci
 npm run dev                  # http://localhost:5173 (the backend CORS allows only this origin)
 npm run lint
 npm run build
 ```
+
+Vite reads `frontend/.env` automatically. Set `VITE_PROXY_TARGET` there if the
+backend runs on a different port. Do not put backend credentials in this file.
 
 ## How it talks to the backend
 
