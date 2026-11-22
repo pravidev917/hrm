@@ -42,3 +42,66 @@ export function matchesQuery(item, query, keys) {
   if (!q) return true
   return keys.some((key) => String(item[key] ?? '').toLowerCase().includes(q))
 }
+
+/**
+ * Attendance times are shown in the company's business timezone (IST), not in the
+ * browser's timezone, because a report printed in Mumbai must read the same in London.
+ */
+const IST_ZONE = 'Asia/Kolkata'
+
+const istTimeFormatter = new Intl.DateTimeFormat('en-IN', {
+  timeZone: IST_ZONE,
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: true,
+})
+
+const istDateTimeFormatter = new Intl.DateTimeFormat('en-IN', {
+  timeZone: IST_ZONE,
+  day: '2-digit',
+  month: 'short',
+  year: 'numeric',
+  hour: '2-digit',
+  minute: '2-digit',
+  hour12: true,
+})
+
+/** "09:12 am" in IST, or '—'. Instants only: a plain date has no time to show. */
+export function formatTimeIST(value) {
+  if (!value) return '—'
+  const d = new Date(value)
+  return Number.isNaN(d.getTime()) ? '—' : istTimeFormatter.format(d)
+}
+
+/** "18 Nov 2025, 09:12 am" in IST, or '—'. */
+export function formatDateTimeIST(value) {
+  if (!value) return '—'
+  const d = new Date(value)
+  return Number.isNaN(d.getTime()) ? '—' : istDateTimeFormatter.format(d)
+}
+
+/** Seconds as H:MM:SS (hours are not capped: a 26-hour total still reads correctly). */
+export function formatDuration(seconds) {
+  const total = Math.max(0, Math.floor(Number(seconds) || 0))
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+/** Seconds as "2h 35m" for summary cards, where seconds are noise. */
+export function formatHours(seconds) {
+  const total = Math.max(0, Math.floor(Number(seconds) || 0))
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  if (h === 0 && m === 0) return total > 0 ? '< 1m' : '0h 00m'
+  return `${h}h ${String(m).padStart(2, '0')}m`
+}
+
+/** Seconds elapsed since an ISO instant, for the live counter on an open session. */
+export function secondsSince(isoInstant, nowMs = Date.now()) {
+  if (!isoInstant) return 0
+  const started = new Date(isoInstant).getTime()
+  if (Number.isNaN(started)) return 0
+  return Math.max(0, Math.floor((nowMs - started) / 1000))
+}

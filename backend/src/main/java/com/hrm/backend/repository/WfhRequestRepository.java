@@ -55,6 +55,20 @@ public interface WfhRequestRepository extends JpaRepository<WfhRequest, Long> {
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate);
 
+    /** Approved WFH of the whole company that touches the range, used by attendance views. */
+    @Query("""
+            SELECT w FROM WfhRequest w
+            WHERE w.status = 'APPROVED'
+              AND w.startDate <= :endDate
+              AND w.endDate >= :startDate
+              AND w.employee.admin.company.companyId =
+                    (SELECT adm.company.companyId FROM Admin adm WHERE adm.adminId = :adminId)
+            """)
+    List<WfhRequest> findApprovedInCompanyOfBetween(
+            @Param("adminId") Long adminId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT w FROM WfhRequest w WHERE w.wfhId = :wfhId")
     Optional<WfhRequest> findByIdForUpdate(@Param("wfhId") Long wfhId);

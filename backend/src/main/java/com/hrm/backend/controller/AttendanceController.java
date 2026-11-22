@@ -121,7 +121,7 @@ public class AttendanceController {
 
     // ================= ADMIN =================
 
-    @GetMapping("/api/admin/attendance")
+    @GetMapping("/api/admin/attendance/records")
     public ResponseEntity<List<AttendanceResponseDTO>>
     getAdminAttendance(
             Authentication authentication) {

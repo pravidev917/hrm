@@ -54,20 +54,58 @@ Decision notifications: this project has no separate notification service. The
 employee sees the decision, reviewer and timestamp in their WFH history, and the
 sidebar shows the pending count. Toast feedback confirms each action.
 
-## Mark attendance
+## Login and logout (the employee flow)
 
-**Mark present** does two different things, decided entirely on the server:
+Attendance is recorded by **Log In** and **Log Out**, not by a manual presence
+button. Each pair becomes one row in `attendance_sessions`:
 
-- If an **Approved** WFH request covers the company-local today, present is
-  recorded as `Present — WFH` without asking for a location.
-- Otherwise the browser requests a fresh high-accuracy position, and the server
-  checks that it is within the configured radius and has acceptable accuracy.
+| Column | Meaning |
+|---|---|
+| `login_at`, `logout_at` | UTC instants taken from the server clock; the request cannot set them |
+| `attendance_date` | company-local date of the login (a session that crosses midnight stays on its start date) |
+| `duration_seconds` | whole seconds between login and logout, computed on logout |
+| `status` | `ACTIVE` (open), `CLOSED` (logged out), `INCOMPLETE` (left open on an earlier day) |
 
-Pending, rejected, cancelled, expired and future WFH requests never unlock the
-WFH path. WFH approval does **not** mark attendance automatically; the employee
-still clicks **Mark present**.
+Rules:
 
-**Mark absent** remains available without location verification.
+- the employee is always the authenticated one - no endpoint accepts an employee id
+  from an employee;
+- at most **one open session per employee**, enforced by an employee row lock and by
+  the partial unique index `uk_attendance_sessions_one_active`;
+- an employee may log in and out many times per day; working time is the sum of the
+  closed sessions, and the open one is shown as a live counter, so nothing is counted
+  twice;
+- logging in also creates (or corrects to `PRESENT`) that day's `attendance` record,
+  with work mode `WFH` only when an approved work-from-home request covers the date;
+- a session left open on a previous day is flagged `INCOMPLETE` and its logout time
+  stays empty. No logout time and no working hours are invented for it;
+- logging out of a stale session flags it instead of closing it, so a forgotten logout
+  never turns into a multi-day working day;
+- a logout is refused when the clock would produce a negative duration;
+- **attendance logout is not application logout**: the auth cookie and the signed-in
+  session are untouched.
+
+### Presence and absence
+
+A day's status is derived, never stored by hand:
+
+| Status | When |
+|---|---|
+| `LOGGED_IN` | a session of today is open |
+| `LOGGED_OUT` | sessions exist and all are closed |
+| `NOT_LOGGED_IN` | today (or a future day) with no session yet - never an absence |
+| `INCOMPLETE_SESSION` | a session was left open and its day is over |
+| `ABSENT` | a past working day (Mon-Sat, not a holiday) with no login and no approved leave |
+| `ON_LEAVE` | approved leave covers the date |
+| `HOLIDAY` / `WEEKLY_OFF` | company holiday / Sunday |
+| `PRESENT` | a historical `attendance` row with no login session |
+
+Saturday is a working day; only Sunday and company holidays are not.
+
+## Location-verified marking (legacy path, still available)
+
+The `POST/PUT /api/employee/attendance` endpoints predate login sessions and are kept
+so historical verification keeps working. They are no longer used by the employee UI.
 
 ### Verification thresholds
 
@@ -133,7 +171,17 @@ The attendance page shows:
 | GET | `/api/admin/wfh` | ADMIN |
 | PATCH | `/api/admin/wfh/{id}/review` | ADMIN |
 | PATCH | `/api/admin/wfh/{id}/revoke` | ADMIN |
-| POST | `/api/employee/attendance?status=PRESENT` | EMPLOYEE, body = location evidence |
+| POST | `/api/employee/attendance/login` | EMPLOYEE - opens a session |
+| POST | `/api/employee/attendance/logout` | EMPLOYEE - closes the open session |
+| GET | `/api/employee/attendance/today` | EMPLOYEE - today's status, sessions and totals |
+| GET | `/api/employee/attendance/history?from&to` | EMPLOYEE - own history with every session |
+| GET | `/api/admin/attendance?from&to&employeeId&designation&status&q` | ADMIN - monitor rows |
+| GET | `/api/admin/attendance/active` | ADMIN - open sessions right now |
+| GET | `/api/admin/attendance/employee/{employeeId}?from&to` | ADMIN - one employee's sessions |
+| GET | `/api/admin/attendance/summary?from&to` | ADMIN - daily / weekly / monthly totals |
+| GET | `/api/admin/attendance/export?...` | ADMIN - CSV of the filtered rows |
+| GET | `/api/admin/attendance/records` | ADMIN - stored daily records (legacy) |
+| POST | `/api/employee/attendance?status=PRESENT` | EMPLOYEE, body = location evidence (legacy) |
 | PUT | `/api/employee/attendance/{id}?status=...` | EMPLOYEE, body = location evidence when changing to PRESENT |
 
 ## Applying the migration
@@ -142,6 +190,7 @@ The migrations are applied in order, once, to your local database:
 
 ```bash
 psql -d hrm_db -v ON_ERROR_STOP=1 -f docs/migrations/V4__office_location_and_wfh.sql
+psql -d hrm_db -v ON_ERROR_STOP=1 -f docs/migrations/V9__attendance_sessions.sql
 ```
 
 Apply `V1` through `V5` in filename order on a fresh database, then restart the

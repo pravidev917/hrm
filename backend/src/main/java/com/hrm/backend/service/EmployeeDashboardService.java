@@ -2,6 +2,7 @@ package com.hrm.backend.service;
 
 import com.hrm.backend.dto.DailyReportTotals;
 import com.hrm.backend.dto.DashboardDTO;
+import com.hrm.backend.dto.EmployeeAttendanceTodayDTO;
 import com.hrm.backend.dto.EmployeeProfileDTO;
 import com.hrm.backend.dto.WeeklyReportTotals;
 import com.hrm.backend.entity.Employee;
@@ -25,6 +26,7 @@ public class EmployeeDashboardService {
     private final DailyReportRepository dailyReportRepository;
     private final WeeklyReportRepository weeklyReportRepository;
     private final CompanyTimeService companyTime;
+    private final AttendanceSessionService attendanceSessionService;
 
     public EmployeeDashboardService(
             EmployeeRepository employeeRepository,
@@ -32,13 +34,15 @@ public class EmployeeDashboardService {
             LeaveManagementRepository leaveRepository,
             DailyReportRepository dailyReportRepository,
             WeeklyReportRepository weeklyReportRepository,
-            CompanyTimeService companyTime) {
+            CompanyTimeService companyTime,
+            AttendanceSessionService attendanceSessionService) {
         this.employeeRepository = employeeRepository;
         this.attendanceRepository = attendanceRepository;
         this.leaveRepository = leaveRepository;
         this.dailyReportRepository = dailyReportRepository;
         this.weeklyReportRepository = weeklyReportRepository;
         this.companyTime = companyTime;
+        this.attendanceSessionService = attendanceSessionService;
     }
 
     @Transactional(readOnly = true)
@@ -69,9 +73,22 @@ public class EmployeeDashboardService {
                 .countByEmployeeEmployeeIdAndAttendanceDateBetween(
                         employeeId, monthStart, today);
 
+        EmployeeAttendanceTodayDTO todayView = attendanceSessionService.todayFor(employee);
+
         DashboardDTO.AttendanceSummary attendance =
                 new DashboardDTO.AttendanceSummary(
-                        todayStatus, present, absent, recorded);
+                        todayStatus, present, absent, recorded,
+                        todayView.status(),
+                        todayView.loggedIn(),
+                        todayView.firstLoginAt(),
+                        todayView.lastLogoutAt(),
+                        todayView.totalWorkSeconds(),
+                        todayView.activeSeconds(),
+                        todayView.activeSince(),
+                        todayView.sessionCount(),
+                        todayView.wfhApproved(),
+                        todayView.onLeave(),
+                        todayView.workingDay());
 
         DashboardDTO.LeaveSummary leaves = new DashboardDTO.LeaveSummary(
                 leaveRepository.countByEmployeeEmployeeIdAndStatus(employeeId, "PENDING"),

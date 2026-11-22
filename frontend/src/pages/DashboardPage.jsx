@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { adminDashboardApi } from '../api/dashboardApi'
 import { employeePortalApi } from '../api/employeeApi'
+import { employeeSessionApi } from '../api/attendanceApi'
+import { getErrorMessage } from '../api/axiosClient'
 import { useAuth } from '../hooks/useAuth'
 import { useFetch } from '../hooks/useFetch'
 import { useToast } from '../hooks/useToast'
@@ -16,7 +18,98 @@ import NotesPanel from '../components/common/NotesPanel'
 import ReportingPanel from '../components/common/ReportingPanel'
 import SourcingAnalytics from '../components/common/SourcingAnalytics'
 import { notesApi } from '../api/notesApi'
-import { formatDate, formatMoney, formatNumber, todayISO } from '../utils/format'
+import {
+  formatDate,
+  formatDuration,
+  formatMoney,
+  formatNumber,
+  formatTimeIST,
+  secondsSince,
+  titleCase,
+  todayISO,
+} from '../utils/format'
+
+/**
+ * Today's attendance on the employee dashboard: the login state, the live working
+ * time and the two actions. Attendance logout only closes the working session; it
+ * does not sign the user out of the application.
+ */
+function DashboardAttendanceCard({ attendance, asOfDate, onChanged }) {
+  const toast = useToast()
+  const [busy, setBusy] = useState(null)
+  const [live, setLive] = useState(() => Date.now())
+  const [error, setError] = useState('')
+
+  const open = Boolean(attendance.loggedIn)
+  const activeSeconds = open ? secondsSince(attendance.activeSince, live) : 0
+  const totalSeconds = (attendance.totalWorkSeconds ?? 0) + activeSeconds
+
+  useEffect(() => {
+    if (!open) return undefined
+    const id = setInterval(() => setLive(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [open])
+
+  async function act(action) {
+    setBusy(action)
+    setError('')
+    try {
+      await (action === 'login' ? employeeSessionApi.login() : employeeSessionApi.logout())
+      toast.success(action === 'login' ? 'Logged in' : 'Logged out')
+      onChanged()
+    } catch (e) {
+      const message = getErrorMessage(e)
+      setError(message)
+      toast.error(message)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <section className="card today-card">
+      <div>
+        <h2>Today · {formatDate(asOfDate)}</h2>
+        <p className="muted">
+          {open ? (
+            <>
+              You are <strong>logged in</strong> since {formatTimeIST(attendance.activeSince)} IST.
+              {' '}Today&rsquo;s total: <strong>{formatDuration(totalSeconds)}</strong>
+              {attendance.sessionCount > 1 && ` across ${attendance.sessionCount} sessions`}.
+            </>
+          ) : attendance.sessionCount > 0 ? (
+            <>
+              You are <strong>logged out</strong>. First login {formatTimeIST(attendance.firstLoginAt)},
+              last logout {formatTimeIST(attendance.lastLogoutAt)} —{' '}
+              <strong>{formatDuration(totalSeconds)}</strong> worked today.
+            </>
+          ) : attendance.onLeave ? (
+            'You are on approved leave today.'
+          ) : attendance.workingDay ? (
+            'You haven’t logged in yet today.'
+          ) : (
+            `${titleCase(attendance.dayStatus)} — not a working day.`
+          )}
+        </p>
+        {error && <p className="muted small">{error}</p>}
+      </div>
+      <div className="row-actions">
+        {open ? (
+          <button type="button" className="btn btn-danger" disabled={busy != null} onClick={() => act('logout')}>
+            {busy === 'logout' ? 'Logging out…' : 'Log out'}
+          </button>
+        ) : (
+          <button type="button" className="btn btn-success" disabled={busy != null} onClick={() => act('login')}>
+            {busy === 'login' ? 'Logging in…' : 'Log in'}
+          </button>
+        )}
+        <Link to="/attendance" className="btn btn-secondary">
+          <Icon name="clock" size={16} /> Attendance
+        </Link>
+      </div>
+    </section>
+  )
+}
 
 export default function DashboardPage() {
   const navigate = useNavigate()
@@ -193,27 +286,10 @@ function EmployeeDashboard() {
   if (error) return <ErrorState message={error} onRetry={reload} />
 
   const { attendance, leaves, dailyReports, weeklyReports } = data
-  const markedToday = attendance.todayStatus !== 'NOT_MARKED'
 
   return (
     <>
-      <section className="card today-card">
-        <div>
-          <h2>Today · {formatDate(data.asOfDate ?? todayISO())}</h2>
-          <p className="muted">
-            {markedToday ? (
-              <>
-                You are marked <StatusBadge value={attendance.todayStatus} /> for today.
-              </>
-            ) : (
-              'You haven’t marked your attendance yet.'
-            )}
-          </p>
-        </div>
-        <Link to="/attendance" className="btn btn-primary">
-          <Icon name="clock" size={16} /> {markedToday ? 'Update attendance' : 'Mark attendance'}
-        </Link>
-      </section>
+      <DashboardAttendanceCard attendance={attendance} asOfDate={data.asOfDate ?? todayISO()} onChanged={reload} />
 
       <div className="stats">
         <StatCard

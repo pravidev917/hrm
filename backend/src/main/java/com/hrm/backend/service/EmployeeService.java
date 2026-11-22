@@ -6,6 +6,7 @@ import com.hrm.backend.entity.Admin;
 import com.hrm.backend.entity.Employee;
 import com.hrm.backend.repository.AdminRepository;
 import com.hrm.backend.repository.AttendanceRepository;
+import com.hrm.backend.repository.AttendanceSessionRepository;
 import com.hrm.backend.repository.DailyReportRepository;
 import com.hrm.backend.repository.EmployeeRepository;
 import com.hrm.backend.repository.FeedbackRepository;
@@ -43,6 +44,7 @@ public class EmployeeService {
     private final EmployeeRepository repository;
     private final AdminRepository adminRepository;
     private final AttendanceRepository attendanceRepository;
+    private final AttendanceSessionRepository attendanceSessionRepository;
     private final LeaveManagementRepository leaveRepository;
     private final DailyReportRepository dailyReportRepository;
     private final WeeklyReportRepository weeklyReportRepository;
@@ -61,6 +63,7 @@ public class EmployeeService {
             EmployeeRepository repository,
             AdminRepository adminRepository,
             AttendanceRepository attendanceRepository,
+            AttendanceSessionRepository attendanceSessionRepository,
             LeaveManagementRepository leaveRepository,
             DailyReportRepository dailyReportRepository,
             WeeklyReportRepository weeklyReportRepository,
@@ -78,6 +81,7 @@ public class EmployeeService {
         this.repository = repository;
         this.adminRepository = adminRepository;
         this.attendanceRepository = attendanceRepository;
+        this.attendanceSessionRepository = attendanceSessionRepository;
         this.leaveRepository = leaveRepository;
         this.dailyReportRepository = dailyReportRepository;
         this.weeklyReportRepository = weeklyReportRepository;
@@ -343,6 +347,7 @@ public class EmployeeService {
 
         Employee employee = getEmployeeByIdForAdmin(employeeId, adminId);
 
+        attendanceSessionRepository.deleteByEmployeeEmployeeId(employeeId);
         attendanceRepository.deleteByEmployeeEmployeeId(employeeId);
         wfhRepository.deleteByEmployeeEmployeeId(employeeId);
         leaveRepository.deleteByEmployeeEmployeeId(employeeId);

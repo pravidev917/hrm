@@ -39,6 +39,19 @@ public interface HolidayRepository extends JpaRepository<Holiday, Long> {
             @Param("endDate") LocalDate endDate
     );
 
+    /** Holidays of a company by company id, used when the actor is an employee. */
+    @Query("""
+            SELECT h FROM Holiday h
+            WHERE h.admin.company.companyId = :companyId
+              AND h.holidayDate BETWEEN :startDate AND :endDate
+            ORDER BY h.holidayDate ASC
+            """)
+    List<Holiday> findForCompanyBetween(
+            @Param("companyId") Long companyId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
+    );
+
     /** Records created by one administrator, used by the account-deletion guard. */
     long countByAdminAdminId(Long adminId);
 }
