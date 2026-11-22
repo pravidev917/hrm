@@ -31,6 +31,7 @@ platforms must provide is environment variables. No credential is ever committed
 | CORS | `SecurityConfig` | Exactly `CORS_ALLOWED_ORIGINS` (comma list, no wildcard), methods `GET,POST,PUT,PATCH,DELETE,OPTIONS`, credentials allowed. |
 | Health | `HealthController` | `GET /api/health` returns 200 only when Postgres answers; 503 otherwise. Public, no tenant data. |
 | API base URL | `frontend/src/api/axiosClient.js` | `import.meta.env.VITE_API_BASE_URL`, `withCredentials: true`. Empty in development so the Vite proxy keeps everything same-origin. |
+| Same-origin API | Render dashboard | `/api/* -> https://<railway-host>/api/*` rewrite (a server-side proxy), so the auth cookie stays first-party. |
 | SPA fallback | Render dashboard | `/* -> /index.html` rewrite (Render has no file-based rewrite). |
 
 ---
@@ -148,15 +149,25 @@ credentials or `sslmode` are wrong. If the deploy log says
 
 | Name | Value |
 | --- | --- |
-| `VITE_API_BASE_URL` | `https://<railway-host>` - no trailing slash |
 | `NODE_VERSION` | `22.18.0` (Vite 8 requires Node `^20.19` or `>=22.12`) |
 
-4. **Redirects/Rewrites** tab (this is what makes `/login`, `/dashboard`,
-   `/attendance` survive a refresh):
+Do **not** set `VITE_API_BASE_URL`. The bundle calls `/api/...` relative to the page
+and the proxy rule below forwards it, so the page and the API share one origin.
+That is what keeps the login cookie first-party: iOS Safari and Android Chrome
+block third-party cookies, so a bundle pointing straight at `*.up.railway.app`
+logs in and is then bounced back to `/login` on a phone.
+
+4. **Redirects/Rewrites** tab (order matters - Render applies the first match):
 
 | Source Path | Destination Path | Action |
 | --- | --- | --- |
+| `/api/*` | `https://<railway-host>/api/*` | Rewrite |
 | `/*` | `/index.html` | Rewrite |
+
+The first rule is a server-side proxy: the browser only ever talks to
+`*.onrender.com`, so `HRM_AUTH` is first-party there and CORS is no longer
+exercised by the deployed app. The second keeps `/login`, `/dashboard` and
+`/attendance` alive across a refresh.
 
 5. Open `https://<render-site>.onrender.com`, sign in at `/admin/login`, refresh
    the page - you must stay signed in.
@@ -203,6 +214,7 @@ Chrome/Firefox/Edge.
 | `/api/health` returns 503 | Neon unreachable | Wrong host/user/password, or missing `sslmode=require`. |
 | Startup fails: `JWT_SECRET must be at least 32 bytes` | Short secret | Regenerate with `openssl rand -base64 48`. |
 | Browser 401 on every call after login | Cookie is `Lax` or not `Secure` | `COOKIE_SAME_SITE=None`, `COOKIE_SECURE=true`, and an exact `CORS_ALLOWED_ORIGINS`. |
+| Mobile: login succeeds, then bounces straight back to `/login` | The page calls `*.up.railway.app` directly, so the cookie is third-party and iOS/Android block it | Add the `/api/*` proxy rewrite on the static site and drop `VITE_API_BASE_URL` so calls are same-origin. |
 | CORS error in the console | Origin mismatch (`http` vs `https`, trailing slash, preview URL) | Put the exact origin in `CORS_ALLOWED_ORIGINS` and redeploy. |
 | Refresh on `/dashboard` gives 404 | Missing SPA rewrite | Add `/* -> /index.html` (Rewrite) on the static site. |
 | First request after inactivity is slow | Railway Free sleeps the service | Expected: 15-30 s wake-up. Hobby ($5/month) removes it. |
