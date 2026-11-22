@@ -190,7 +190,6 @@ function ReportingBody({ data, isAdmin }) {
     dailyReports,
     sourcedProfiles,
     revenueTargets,
-    clientBudgets,
     platformEffectiveness,
     pipeline,
     recentCandidates,
@@ -380,86 +379,6 @@ function ReportingBody({ data, isAdmin }) {
             <p className="muted small">{revenueTargets.basis}</p>
           </>
         )}
-      </section>
-
-      <section className="card">
-        <div className="card-header">
-          <div>
-            <h2>Client budget vs generated revenue</h2>
-            <p className="muted small">
-              Budgets are capacity, not revenue: openings × budget per candidate.
-            </p>
-          </div>
-        </div>
-
-        {clientBudgets.clients.length === 0 ? (
-          <EmptyState title="No client activity" hint="No client has budget or revenue in this range." />
-        ) : (
-          <>
-            <VerticalBarChart
-              ariaLabel="Client budget versus actual revenue"
-              data={clientBudgets.clients.map((client) => ({
-                label: client.clientName,
-                values: {
-                  budget: client.totalBudget ?? 0,
-                  revenue: client.actualRevenue ?? 0,
-                },
-              }))}
-              series={[
-                { key: 'budget', label: 'Client budget', tone: 'purple' },
-                { key: 'revenue', label: 'Actual revenue', tone: 'green' },
-              ]}
-              valueFormat={formatMoney}
-            />
-            <div className="table-wrap">
-            <table className="table">
-              <caption className="sr-only">Client budgets and attributable revenue</caption>
-              <thead>
-                <tr>
-                  <th>Client / position</th>
-                  <th>Openings</th>
-                  <th>Per candidate</th>
-                  <th>Total budget</th>
-                  <th>Actual revenue</th>
-                  <th>Remaining</th>
-                  <th>Employee breakdown</th>
-                </tr>
-              </thead>
-              <tbody>
-                {clientBudgets.clients.map((client) => (
-                  <tr key={client.clientId}>
-                    <td>
-                      <strong>{client.clientName}</strong>
-                      <span className="muted small"> {client.position || '—'}</span>
-                    </td>
-                    <td>{formatNumber(client.openings)}</td>
-                    <td>{formatMoney(client.budgetPerCandidate)}</td>
-                    <td>
-                      {client.budgetConfigured ? formatMoney(client.totalBudget) : 'Budget not configured'}
-                    </td>
-                    <td>{formatMoney(client.actualRevenue)}</td>
-                    <td>{client.budgetConfigured ? formatMoney(client.remainingBudget) : '—'}</td>
-                    <td>
-                      {client.employees.length === 0
-                        ? '—'
-                        : client.employees
-                            .map((row) => `${row.employeeName}: ${formatMoney(row.revenue)}`)
-                            .join(' · ')}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-              </table>
-            </div>
-          </>
-        )}
-        {Number(clientBudgets.unattributedRevenue) > 0 && (
-          <p className="muted small">
-            {formatMoney(clientBudgets.unattributedRevenue)} of revenue has no client attribution and is
-            shown separately, not under a client.
-          </p>
-        )}
-        <p className="muted small">{clientBudgets.basis}</p>
       </section>
 
       <section className="card">
