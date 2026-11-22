@@ -65,4 +65,16 @@ public class WeeklyReport {
 
     @Column(name = "revenue_generated", precision = 12, scale = 2)
     private BigDecimal revenueGenerated = BigDecimal.ZERO;
+
+    /** Candidate the week's placement refers to (free text, reference column). */
+    @Column(name = "candidate_name", length = 150)
+    private String candidateName;
+
+    /** Position the candidate was put forward for; defaults to the client's position. */
+    @Column(length = 150)
+    private String position;
+
+    /** Where the candidate stands: INTERVIEW_SCHEDULED, SELECTED, JOINED, REJECTED, ON_HOLD. */
+    @Column(name = "interview_status", length = 40)
+    private String interviewStatus;
 }

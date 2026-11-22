@@ -38,4 +38,7 @@ public class WeeklyReportResponseDTO {
     private Integer joined;
 
     private BigDecimal revenueGenerated;
+    private String candidateName;
+    private String position;
+    private String interviewStatus;
 }

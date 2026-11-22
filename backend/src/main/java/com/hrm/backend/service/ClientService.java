@@ -219,6 +219,25 @@ public class ClientService {
 
         checkMoney("Salary offered", request.getSalaryOffered(), MAX_MONEY);
         checkMoney("Budget per candidate", request.getBudgetPerCandidate(), MAX_MONEY);
+
+        // How the client pays. The form asks for the type first and then the matching
+        // figure, so the value is validated against the type it belongs to.
+        String compensationType = normalizeCompensationType(request.getCompensationType());
+        if (request.getCompensationValue() != null) {
+            if (request.getCompensationValue().signum() < 0) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "Compensation cannot be negative");
+            }
+            if (request.getCompensationValue().compareTo(MAX_MONEY) > 0) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "Compensation is too large");
+            }
+            if ("SALARY_BASED".equals(compensationType)
+                    && request.getCompensationValue().signum() == 0) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, "Salary based compensation must be greater than zero");
+            }
+        }
         checkPercent("Percentage per candidate", request.getPercentagePerCandidate());
         checkPercent("Tax", request.getTax());
 
@@ -248,6 +267,8 @@ public class ClientService {
         target.setHrName(trimToNull(request.getHrName()));
         target.setNumberOfPositions(request.getNumberOfPositions());
         target.setSalaryOffered(scale(request.getSalaryOffered()));
+        target.setCompensationType(normalizeCompensationType(request.getCompensationType()));
+        target.setCompensationValue(scale(request.getCompensationValue()));
         target.setBudgetPerCandidate(scale(request.getBudgetPerCandidate()));
         target.setPercentagePerCandidate(scale(request.getPercentagePerCandidate()));
         target.setTax(scale(request.getTax()));
@@ -277,6 +298,26 @@ public class ClientService {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, label + " must be at most " + max + " characters");
         }
+    }
+
+    /* ----------------------------- compensation ------------------------------ */
+
+    /** OFFERED_PER_CANDIDATE or SALARY_BASED; anything else is rejected. */
+    private String normalizeCompensationType(String raw) {
+
+        String value = raw == null ? "" : raw.trim().toUpperCase(Locale.ROOT);
+
+        if (value.isEmpty()) {
+            return "OFFERED_PER_CANDIDATE";
+        }
+
+        if (!value.equals("OFFERED_PER_CANDIDATE") && !value.equals("SALARY_BASED")) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Compensation type must be OFFERED_PER_CANDIDATE or SALARY_BASED");
+        }
+
+        return value;
     }
 
     private void checkMoney(String label, BigDecimal value, BigDecimal max) {

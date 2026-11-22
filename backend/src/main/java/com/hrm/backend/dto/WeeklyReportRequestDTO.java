@@ -30,4 +30,13 @@ public class WeeklyReportRequestDTO {
      * client (weeks filed before client selection existed).
      */
     private Long clientId;
+
+    /** Candidate the week refers to (optional, shown in the weekly report table). */
+    private String candidateName;
+
+    /** Position put forward; falls back to the client's position when empty. */
+    private String position;
+
+    /** INTERVIEW_SCHEDULED, SELECTED, JOINED, REJECTED or ON_HOLD. */
+    private String interviewStatus;
 }

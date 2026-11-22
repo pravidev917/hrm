@@ -25,6 +25,10 @@ import java.util.List;
 @Transactional
 public class WeeklyReportService {
 
+    /** Interview stages offered by the weekly report form (stored uppercased). */
+    private static final List<String> INTERVIEW_STATUSES =
+            List.of("INTERVIEW_SCHEDULED", "SELECTED", "JOINED", "REJECTED", "ON_HOLD");
+
     private final WeeklyReportRepository repository;
     private final EmployeeRepository employeeRepository;
     private final AdminRepository adminRepository;
@@ -85,6 +89,13 @@ public class WeeklyReportService {
         dto.setFinalSelections(report.getFinalSelections());
         dto.setJoined(report.getJoined());
         dto.setRevenueGenerated(report.getRevenueGenerated());
+        dto.setCandidateName(report.getCandidateName());
+        dto.setPosition(report.getPosition());
+        dto.setInterviewStatus(report.getInterviewStatus());
+        // The client's own position is shown when the week did not name one.
+        if (dto.getPosition() == null && report.getClient() != null) {
+            dto.setPosition(report.getClient().getPosition());
+        }
 
         return dto;
     }
@@ -146,15 +157,42 @@ public class WeeklyReportService {
         report.setFinalSelections(request.getFinalSelections());
         report.setJoined(request.getJoined());
         report.setRevenueGenerated(request.getRevenueGenerated());
+        report.setCandidateName(trimToNull(request.getCandidateName()));
+        report.setPosition(trimToNull(request.getPosition()));
+        report.setInterviewStatus(normalizeInterviewStatus(request.getInterviewStatus()));
+    }
+
+    /** The five interview stages the weekly table understands; blank clears it. */
+    private String normalizeInterviewStatus(String raw) {
+
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+
+        String value = raw.trim().toUpperCase(java.util.Locale.ROOT).replace(' ', '_');
+
+        if (!INTERVIEW_STATUSES.contains(value)) {
+            throw new RuntimeException(
+                    "Interview status must be one of: " + String.join(", ", INTERVIEW_STATUSES));
+        }
+
+        return value;
+    }
+
+    private String trimToNull(String value) {
+        if (value == null || value.isBlank()) return null;
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     /**
      * Attaches the optional client to a weekly report.
      *
-     * Only clients of the employee's own administrator are accepted, so a client
-     * id from another organisation can never be attached. A request without a
-     * clientId leaves the current client untouched (reports keep their client,
-     * including weeks filed before client selection existed).
+     * Clients are company data, so every client any administrator of the employee's
+     * company created is accepted - exactly like the daily report form and the client
+     * dropdown the employee sees. A client from another company is refused. A request
+     * without a clientId leaves the current client untouched (reports keep their
+     * client, including weeks filed before client selection existed).
      */
     private void applyClient(WeeklyReport report, WeeklyReportRequestDTO request) {
 
@@ -162,16 +200,33 @@ public class WeeklyReportService {
             return;
         }
 
-        Long adminId = report.getEmployee().getAdmin().getAdminId();
+        Long employeeCompanyId = companyIdOf(report.getEmployee());
 
         Client client = clientRepository.findById(request.getClientId())
                 .orElseThrow(() -> new RuntimeException("Client not found"));
 
-        if (client.getAdmin() == null || !adminId.equals(client.getAdmin().getAdminId())) {
+        Long clientCompanyId = client.getAdmin() == null || client.getAdmin().getCompany() == null
+                ? null
+                : client.getAdmin().getCompany().getCompanyId();
+
+        if (employeeCompanyId == null || !employeeCompanyId.equals(clientCompanyId)) {
             throw new RuntimeException("Access denied: client does not belong to this organisation");
         }
 
+        if (!"ACTIVE".equals(client.getStatus())) {
+            throw new RuntimeException("Cannot use an inactive client for a weekly report");
+        }
+
         report.setClient(client);
+    }
+
+    private Long companyIdOf(Employee employee) {
+
+        if (employee == null || employee.getAdmin() == null || employee.getAdmin().getCompany() == null) {
+            return null;
+        }
+
+        return employee.getAdmin().getCompany().getCompanyId();
     }
 
     // EMPLOYEE: CREATE

@@ -58,6 +58,17 @@ public class Client {
     @Column(name = "salary_offered", precision = 12, scale = 2)
     private BigDecimal salaryOffered;
 
+    /**
+     * How the client pays: a fixed amount for every candidate placed
+     * (OFFERED_PER_CANDIDATE) or the annual salary the position carries
+     * (SALARY_BASED). The matching figure is compensationValue.
+     */
+    @Column(name = "compensation_type", nullable = false, length = 30)
+    private String compensationType = "OFFERED_PER_CANDIDATE";
+
+    @Column(name = "compensation_value", precision = 12, scale = 2)
+    private BigDecimal compensationValue;
+
     @Column(name = "percentage_per_candidate", precision = 5, scale = 2)
     private BigDecimal percentagePerCandidate;
 
