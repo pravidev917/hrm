@@ -4,6 +4,7 @@ package com.hrm.backend.controller;
 import com.hrm.backend.dto.FeedbackRequestDTO;
 import jakarta.validation.Valid;
 import com.hrm.backend.dto.FeedbackResponseDTO;
+import com.hrm.backend.export.ExportFile;
 import com.hrm.backend.service.AdminService;
 import com.hrm.backend.service.FeedbackService;
 
@@ -40,6 +41,24 @@ public class AdminFeedbackController {
         return ResponseEntity.ok(
                 feedbackService.getAdminFeedback(adminId)
         );
+    }
+
+    /**
+     * CSV or Excel of the candidates table (`?format=csv|xlsx`), narrowed by the
+     * same search and status the page is showing.
+     */
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> export(
+            Authentication authentication,
+            @RequestParam(name = "format", required = false) String format,
+            @RequestParam(name = "q", required = false) String query,
+            @RequestParam(name = "status", required = false) String status) {
+
+        Long adminId = adminService.getAdminIdByEmail(authentication.getName());
+
+        return ExportFile
+                .of(feedbackService.exportCandidates(adminId, query, status), format, "candidates")
+                .toResponse();
     }
 
     @PostMapping("/employees/{employeeId}")

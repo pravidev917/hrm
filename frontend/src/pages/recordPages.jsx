@@ -44,6 +44,8 @@ const feedbackConfig = {
   noun: 'Candidate',
   idKey: 'feedbackId',
   api: feedbackApi,
+  exportEndpoint: '/api/admin/feedback/export',
+  exportFilename: 'candidates',
   searchKeys: ['candidateName', 'candidateEmail', 'currentCompany', 'currentDesignation', 'clientName', 'hrName', 'status', 'sourcingPlatform'],
   fields: [
     // candidate details

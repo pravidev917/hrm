@@ -11,6 +11,7 @@ import { ErrorState, Spinner } from '../components/common/Feedback'
 import { FilterSelect, SearchInput, Toolbar } from '../components/common/Toolbar'
 import Icon from '../components/common/Icon'
 import ClientFormModal from '../components/clients/ClientFormModal'
+import ExportButtons from '../components/common/ExportButtons'
 import { formatMoney, formatNumber, matchesQuery } from '../utils/format'
 
 /** Money that may be unset: shows a dash instead of "0" when nothing was entered. */
@@ -197,6 +198,12 @@ export default function ClientsPage() {
                 { value: 'ACTIVE', label: 'Active' },
                 { value: 'INACTIVE', label: 'Inactive' },
               ]}
+            />
+            <ExportButtons
+              endpoint="/api/admin/clients/export"
+              params={{ q: query, status }}
+              filename="clients"
+              label="Client list"
             />
             <span className="muted small push-right">
               {rows.length} of {(data ?? []).length} clients

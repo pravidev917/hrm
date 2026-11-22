@@ -7,6 +7,8 @@ import com.hrm.backend.entity.Client;
 import com.hrm.backend.entity.DailyReport;
 import com.hrm.backend.entity.DailyReportPlatformCount;
 import com.hrm.backend.entity.Employee;
+import com.hrm.backend.export.SheetBuilder;
+import com.hrm.backend.export.TextFilter;
 import com.hrm.backend.repository.ClientRepository;
 import com.hrm.backend.repository.DailyReportPlatformCountRepository;
 import com.hrm.backend.repository.DailyReportRepository;
@@ -425,6 +427,74 @@ public class DailyReportService {
                 .stream()
                 .map(this::convertToDTO)
                 .toList();
+    }
+
+    // ADMIN: EXPORT THE REPORTS TABLE (CSV or Excel)
+    @Transactional(readOnly = true)
+    public SheetBuilder exportReports(
+            Long adminId,
+            String query,
+            Long clientId,
+            LocalDate reportDate) {
+
+        SheetBuilder sheet = SheetBuilder.of("Daily reports",
+                "Employee ID",
+                "Employee",
+                "Designation",
+                "Date",
+                "Client",
+                "Candidates sourced",
+                "Profiles submitted",
+                "Candidates contacted",
+                "Connected",
+                "By platform",
+                "Remarks");
+
+        for (DailyReportResponseDTO row : getReportsByAdmin(adminId)) {
+
+            if (clientId != null && !clientId.equals(row.getClientId())) {
+                continue;
+            }
+            if (reportDate != null && !reportDate.equals(row.getReportDate())) {
+                continue;
+            }
+            if (!TextFilter.contains(query,
+                    row.getEmployeeName(),
+                    row.getEmployeeCode(),
+                    row.getClientName(),
+                    row.getRemarks())) {
+                continue;
+            }
+
+            sheet.row(
+                    row.getEmployeeCode(),
+                    row.getEmployeeName(),
+                    row.getEmployeeDesignation(),
+                    row.getReportDate(),
+                    row.getClientName(),
+                    row.getCandidatesSourced(),
+                    row.getProfilesSubmitted(),
+                    row.getCandidatesContacted(),
+                    row.getConnectedCount(),
+                    platformSummary(row.getPlatformCounts()),
+                    row.getRemarks());
+        }
+
+        return sheet;
+    }
+
+    /** "Naukri 3, Apna 2" - the per-platform split of one report, kept in one cell. */
+    private String platformSummary(List<PlatformCountDTO> counts) {
+
+        if (counts == null || counts.isEmpty()) {
+            return null;
+        }
+
+        return counts.stream()
+                .filter(count -> count.profileCount() != null && count.profileCount() > 0)
+                .map(count -> count.platform() + " " + count.profileCount())
+                .reduce((left, right) -> left + ", " + right)
+                .orElse(null);
     }
 
     // Update employee's own report

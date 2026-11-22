@@ -10,6 +10,7 @@ import ConfirmDialog from './ConfirmDialog'
 import { ErrorState } from './Feedback'
 import Skeleton from './Skeleton'
 import { SearchInput, Toolbar } from './Toolbar'
+import ExportButtons from './ExportButtons'
 import { matchesQuery } from '../../utils/format'
 
 /**
@@ -36,6 +37,7 @@ export default function RecordsPage({ config, hideHeader = false }) {
   const [removing, setRemoving] = useState(null)
 
   const records = data?.records
+  // What the table shows; an export re-runs the same search on the server.
   const rows = useMemo(
     () => (records ?? []).filter((r) => matchesQuery(r, query, [...config.searchKeys, ...(isAdmin ? ['employeeName'] : [])])),
     [records, query, config.searchKeys, isAdmin],
@@ -108,6 +110,14 @@ export default function RecordsPage({ config, hideHeader = false }) {
         <section className="card">
           <Toolbar>
             <SearchInput value={query} onChange={setQuery} placeholder="Search…" />
+            {isAdmin && config.exportEndpoint && (
+              <ExportButtons
+                endpoint={config.exportEndpoint}
+                params={{ q: query }}
+                filename={config.exportFilename ?? 'records'}
+                label={config.title}
+              />
+            )}
             {hideHeader && (
               <button type="button" className="btn btn-primary btn-sm push-right" onClick={() => setForm({})}>
                 Add {config.noun.toLowerCase()}

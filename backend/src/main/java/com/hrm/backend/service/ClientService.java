@@ -1,6 +1,9 @@
 package com.hrm.backend.service;
 
 import com.hrm.backend.entity.Client;
+import com.hrm.backend.dto.ClientResponseDTO;
+import com.hrm.backend.export.SheetBuilder;
+import com.hrm.backend.export.TextFilter;
 import com.hrm.backend.repository.ClientRepository;
 import com.hrm.backend.repository.DailyReportRepository;
 import com.hrm.backend.repository.WeeklyReportRepository;
@@ -56,6 +59,75 @@ public class ClientService {
      */
     public List<Client> getActiveClientsByAdmin(Long adminId) {
         return repository.findByCompanyOfAndStatus(adminId, "ACTIVE");
+    }
+
+    // ADMIN: EXPORT THE CLIENT LIST (CSV or Excel)
+    public SheetBuilder exportClients(Long adminId, String query, String status) {
+
+        SheetBuilder sheet = SheetBuilder.of("Clients",
+                "Client ID",
+                "Client code",
+                "Client name",
+                "Vendor",
+                "BDM",
+                "Position",
+                "Open positions",
+                "Contact number",
+                "HR name",
+                "HR contact details",
+                "Salary offered",
+                "Compensation type",
+                "Compensation value",
+                "Budget per candidate",
+                "Percentage per candidate",
+                "Tax",
+                "Profiles submitted",
+                "Interviews conducted",
+                "Selected candidates",
+                "Joining details",
+                "Status");
+
+        for (Client client : getClientsByAdmin(adminId)) {
+
+            ClientResponseDTO row = ClientResponseDTO.from(client);
+
+            boolean matchesQuery = TextFilter.contains(query,
+                    row.clientCode(),
+                    row.clientName(),
+                    row.vendor(),
+                    row.bdmName(),
+                    row.position(),
+                    row.hrName());
+
+            if (!matchesQuery || !TextFilter.same(status, row.status())) {
+                continue;
+            }
+
+            sheet.row(
+                    row.clientId(),
+                    row.clientCode(),
+                    row.clientName(),
+                    row.vendor(),
+                    row.bdmName(),
+                    row.position(),
+                    row.numberOfPositions(),
+                    row.contactNumber(),
+                    row.hrName(),
+                    row.hrContactDetails(),
+                    row.salaryOffered(),
+                    row.compensationType(),
+                    row.compensationValue(),
+                    row.budgetPerCandidate(),
+                    row.percentagePerCandidate(),
+                    row.tax(),
+                    row.profilesSubmitted(),
+                    row.interviewsConducted(),
+                    row.selectedCandidates(),
+                    row.joiningDetails(),
+                    row.status());
+        }
+
+        return sheet;
     }
 
     // Get client by ID

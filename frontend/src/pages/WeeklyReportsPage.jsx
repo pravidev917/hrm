@@ -12,6 +12,7 @@ import ConfirmDialog from '../components/common/ConfirmDialog'
 import StatusBadge from '../components/common/StatusBadge'
 import { ErrorState, Spinner } from '../components/common/Feedback'
 import Icon from '../components/common/Icon'
+import ExportButtons from '../components/common/ExportButtons'
 import { SearchInput, Toolbar } from '../components/common/Toolbar'
 import { formatDate, formatMoney, matchesQuery, todayISO } from '../utils/format'
 
@@ -165,6 +166,12 @@ export default function WeeklyReportsPage() {
           {isAdmin && (
             <Toolbar>
               <SearchInput value={query} onChange={setQuery} placeholder="Search employee…" />
+              <ExportButtons
+                endpoint="/api/admin/weekly-reports/export"
+                params={{ q: query }}
+                filename="weekly-reports"
+                label="Weekly reports"
+              />
             </Toolbar>
           )}
           <DataTable columns={columns} rows={rows} rowKey="weeklyReportId" emptyTitle={data.length ? 'No reports match your search' : 'No weekly reports yet'} emptyHint={

@@ -4,6 +4,7 @@ package com.hrm.backend.controller;
 import com.hrm.backend.dto.ClientResponseDTO;
 import com.hrm.backend.entity.Admin;
 import com.hrm.backend.entity.Client;
+import com.hrm.backend.export.ExportFile;
 import com.hrm.backend.service.AdminService;
 import com.hrm.backend.service.ClientService;
 
@@ -64,6 +65,21 @@ public class ClientController {
     }
 
     // Get client profile
+    /** CSV or Excel of the client list (`?format=csv|xlsx&q=&status=`). */
+    @GetMapping("/export")
+    public ResponseEntity<byte[]> exportClients(
+            Authentication authentication,
+            @RequestParam(name = "format", required = false) String format,
+            @RequestParam(name = "q", required = false) String query,
+            @RequestParam(name = "status", required = false) String status) {
+
+        Long adminId = adminService.getAdminIdByEmail(authentication.getName());
+
+        return ExportFile
+                .of(clientService.exportClients(adminId, query, status), format, "clients")
+                .toResponse();
+    }
+
     @GetMapping("/{clientId}")
     public ResponseEntity<ClientResponseDTO> getClient(
             @PathVariable Long clientId,

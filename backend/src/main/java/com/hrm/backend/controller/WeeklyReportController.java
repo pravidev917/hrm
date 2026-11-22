@@ -3,6 +3,7 @@ package com.hrm.backend.controller;
 
 import com.hrm.backend.dto.WeeklyReportRequestDTO;
 import com.hrm.backend.dto.WeeklyReportResponseDTO;
+import com.hrm.backend.export.ExportFile;
 import com.hrm.backend.service.AdminService;
 import com.hrm.backend.service.EmployeeService;
 import com.hrm.backend.service.WeeklyReportService;
@@ -144,6 +145,20 @@ public class WeeklyReportController {
 
         return ResponseEntity.ok(
                 weeklyReportService.getAdminReportById(adminId, reportId));
+    }
+
+    /** CSV or Excel of the admin weekly reports table (`?format=csv|xlsx&q=`). */
+    @GetMapping("/api/admin/weekly-reports/export")
+    public ResponseEntity<byte[]> exportAdminReports(
+            Authentication authentication,
+            @RequestParam(name = "format", required = false) String format,
+            @RequestParam(name = "q", required = false) String query) {
+
+        Long adminId = adminService.getAdminIdByEmail(authentication.getName());
+
+        return ExportFile
+                .of(weeklyReportService.exportReports(adminId, query), format, "weekly-reports")
+                .toResponse();
     }
 
     @GetMapping("/api/admin/weekly-reports/date-range")

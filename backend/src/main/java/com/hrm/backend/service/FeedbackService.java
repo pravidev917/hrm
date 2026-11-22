@@ -5,6 +5,8 @@ import com.hrm.backend.dto.FeedbackRequestDTO;
 import com.hrm.backend.dto.FeedbackResponseDTO;
 import com.hrm.backend.entity.Employee;
 import com.hrm.backend.entity.Feedback;
+import com.hrm.backend.export.SheetBuilder;
+import com.hrm.backend.export.TextFilter;
 import com.hrm.backend.repository.EmployeeRepository;
 import com.hrm.backend.repository.FeedbackRepository;
 
@@ -55,6 +57,77 @@ public class FeedbackService {
                 .stream()
                 .map(FeedbackResponseDTO::from)
                 .toList();
+    }
+
+    // ADMIN: EXPORT CANDIDATES (CSV or Excel)
+    @Transactional(readOnly = true)
+    public SheetBuilder exportCandidates(Long adminId, String query, String status) {
+
+        SheetBuilder sheet = SheetBuilder.of("Candidates",
+                "Employee",
+                "Candidate",
+                "Email",
+                "Phone",
+                "Current location",
+                "Preferred location",
+                "Current CTC",
+                "Expected CTC",
+                "Current company",
+                "Current designation",
+                "Notice period (days)",
+                "HR name",
+                "Client",
+                "Interview scheduled",
+                "Interview date",
+                "Interview attended",
+                "Status",
+                "Google feedback",
+                "Sourcing platform",
+                "Sourced date",
+                "Comments");
+
+        for (FeedbackResponseDTO row : getAdminFeedback(adminId)) {
+
+            boolean matchesQuery = TextFilter.contains(query,
+                    row.employeeName(),
+                    row.candidateName(),
+                    row.candidateEmail(),
+                    row.currentCompany(),
+                    row.currentDesignation(),
+                    row.clientName(),
+                    row.hrName(),
+                    row.status(),
+                    row.sourcingPlatform());
+
+            if (!matchesQuery || !TextFilter.same(status, row.status())) {
+                continue;
+            }
+
+            sheet.row(
+                    row.employeeName(),
+                    row.candidateName(),
+                    row.candidateEmail(),
+                    row.contactNumber(),
+                    row.currentLocation(),
+                    row.preferredLocation(),
+                    row.currentCtc(),
+                    row.expectedCtc(),
+                    row.currentCompany(),
+                    row.currentDesignation(),
+                    row.noticePeriodDays(),
+                    row.hrName(),
+                    row.clientName(),
+                    row.interviewScheduled(),
+                    row.interviewScheduledDate(),
+                    row.interviewAttended(),
+                    row.status(),
+                    row.googleFeedbackGiven(),
+                    row.sourcingPlatform(),
+                    row.sourcedDate(),
+                    row.comments());
+        }
+
+        return sheet;
     }
 
     // EMPLOYEE: CREATE OWN FEEDBACK

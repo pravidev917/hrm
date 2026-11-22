@@ -3,6 +3,7 @@ package com.hrm.backend.controller;
 
 import com.hrm.backend.dto.DailyReportResponseDTO;
 import com.hrm.backend.entity.DailyReport;
+import com.hrm.backend.export.ExportFile;
 import com.hrm.backend.service.AdminService;
 import com.hrm.backend.service.DailyReportService;
 import com.hrm.backend.service.EmployeeService;
@@ -167,6 +168,26 @@ public class DailyReportController {
 
         return ResponseEntity.ok(
                 reportService.getAdminReport(reportId, adminId));
+    }
+
+    /**
+     * CSV or Excel of the admin reports table (`?format=csv|xlsx&q=&clientId=&date=`),
+     * with the same filters the page applies.
+     */
+    @GetMapping("/admin/reports/export")
+    public ResponseEntity<byte[]> exportAdminReports(
+            Authentication authentication,
+            @RequestParam(name = "format", required = false) String format,
+            @RequestParam(name = "q", required = false) String query,
+            @RequestParam(name = "clientId", required = false) Long clientId,
+            @RequestParam(name = "date", required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate reportDate) {
+
+        Long adminId = adminService.getAdminIdByEmail(authentication.getName());
+
+        return ExportFile
+                .of(reportService.exportReports(adminId, query, clientId, reportDate), format, "daily-reports")
+                .toResponse();
     }
 
     @GetMapping("/admin/reports/date-range")

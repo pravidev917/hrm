@@ -369,6 +369,13 @@ input[type='checkbox'], input[type='radio'] { width: auto; min-height: 0; accent
 }
 .toolbar-right { margin-left: auto; display: flex; gap: var(--space-2); align-items: center; flex-wrap: wrap; }
 
+/* CSV / Excel download pair, kept together so the table filters stay grouped. */
+.export-buttons { display: inline-flex; gap: 2px; }
+.export-buttons .btn { gap: 6px; white-space: nowrap; }
+.export-buttons .btn + .btn { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.export-buttons .btn:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+
+
 .search { position: relative; display: flex; align-items: center; flex: 1 1 260px; max-width: 380px; color: var(--muted); }
 .search svg { position: absolute; left: var(--space-3); pointer-events: none; }
 .search input { padding-left: 36px; }

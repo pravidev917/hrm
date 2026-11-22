@@ -14,6 +14,7 @@ import ConfirmDialog from '../components/common/ConfirmDialog'
 import { ErrorState, Spinner } from '../components/common/Feedback'
 import { FilterSelect, SearchInput, Toolbar } from '../components/common/Toolbar'
 import Icon from '../components/common/Icon'
+import ExportButtons from '../components/common/ExportButtons'
 import { formatDate, formatNumber, matchesQuery, todayISO } from '../utils/format'
 
 const NUMBER = { type: 'number', min: 0, step: 1, half: true, required: true }
@@ -340,6 +341,14 @@ export default function DailyReportsPage() {
               <button type="button" className="btn btn-sm btn-ghost" onClick={() => setDate('')}>
                 <Icon name="close" size={14} /> Clear date
               </button>
+            )}
+            {isAdmin && (
+              <ExportButtons
+                endpoint="/api/admin/reports/export"
+                params={{ q: query, clientId: client, date }}
+                filename="daily-reports"
+                label="Daily reports"
+              />
             )}
           </Toolbar>
 

@@ -7,6 +7,8 @@ import com.hrm.backend.entity.Admin;
 import com.hrm.backend.entity.Client;
 import com.hrm.backend.entity.Employee;
 import com.hrm.backend.entity.WeeklyReport;
+import com.hrm.backend.export.SheetBuilder;
+import com.hrm.backend.export.TextFilter;
 import com.hrm.backend.repository.AdminRepository;
 import com.hrm.backend.repository.ClientRepository;
 import com.hrm.backend.repository.EmployeeRepository;
@@ -460,7 +462,57 @@ public List<WeeklyReportResponseDTO> getAdminReportsByDateRange(
             .toList();
 }
 
-// VALIDATE DATE RANGE
+// ADMIN: EXPORT THE WEEKLY REPORTS TABLE (CSV or Excel)
+
+    @Transactional(readOnly = true)
+    public SheetBuilder exportReports(Long adminId, String query) {
+
+        SheetBuilder sheet = SheetBuilder.of("Weekly reports",
+                "Employee",
+                "Week start",
+                "Week end",
+                "Week number",
+                "Client",
+                "Profiles submitted",
+                "Interviews scheduled",
+                "Final selections",
+                "Joined",
+                "Revenue generated",
+                "Candidate name",
+                "Position",
+                "Interview status");
+
+        for (WeeklyReportResponseDTO row : getAdminReports(adminId)) {
+
+            if (!TextFilter.contains(query,
+                    row.getEmployeeName(),
+                    row.getClientName(),
+                    row.getCandidateName(),
+                    row.getPosition(),
+                    row.getInterviewStatus())) {
+                continue;
+            }
+
+            sheet.row(
+                    row.getEmployeeName(),
+                    row.getWeekStartDate(),
+                    row.getWeekEndDate(),
+                    row.getWeekNumber(),
+                    row.getClientName(),
+                    row.getProfilesSubmitted(),
+                    row.getInterviewsScheduled(),
+                    row.getFinalSelections(),
+                    row.getJoined(),
+                    row.getRevenueGenerated(),
+                    row.getCandidateName(),
+                    row.getPosition(),
+                    row.getInterviewStatus());
+        }
+
+        return sheet;
+    }
+
+    // VALIDATE DATE RANGE
 
 private void validateDateRange(
         LocalDate startDate,

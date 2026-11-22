@@ -524,7 +524,8 @@ function AdminAttendanceMonitor() {
       document.body.appendChild(link)
       link.click()
       link.remove()
-      URL.revokeObjectURL(url)
+      // Revoking straight away cancels the download in Chrome; give it a moment.
+      setTimeout(() => URL.revokeObjectURL(url), 4000)
       toast.success('Attendance exported as CSV')
     } catch (e) {
       toast.error(getErrorMessage(e))
