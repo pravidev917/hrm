@@ -31,7 +31,12 @@ const moneyOrMissing = (value) => (value == null ? 'Target not configured' : for
  * in the browser, so filtered totals, targets and client budgets stay
  * consistent between the administrator and employee views.
  */
-export default function ReportingPanel() {
+/**
+ * The reporting & revenue panel. Pass `showSourcedProfiles={false}` to leave out the
+ * "Sourced profiles by employee" and "Daily sourcing trend" cards - the employee
+ * dashboard does not show them.
+ */
+export default function ReportingPanel({ showSourcedProfiles = true }) {
   const { isAdmin } = useAuth()
   const [draft, setDraft] = useState(EMPTY_FILTERS)
   const [applied, setApplied] = useState(EMPTY_FILTERS)
@@ -179,13 +184,13 @@ export default function ReportingPanel() {
           <EmptyState title="No reporting data" hint="Adjust the filters and try again." />
         </div>
       ) : (
-        <ReportingBody data={data} isAdmin={isAdmin} />
+        <ReportingBody data={data} isAdmin={isAdmin} showSourcedProfiles={showSourcedProfiles} />
       )}
     </section>
   )
 }
 
-function ReportingBody({ data, isAdmin }) {
+function ReportingBody({ data, isAdmin, showSourcedProfiles }) {
   const {
     dailyReports,
     sourcedProfiles,
@@ -257,6 +262,7 @@ function ReportingBody({ data, isAdmin }) {
         <p className="muted small">{dailyReports.missingBasis}</p>
       </section>
 
+      {showSourcedProfiles && (
       <div className="grid-2">
         <section className="card">
           <div className="card-header">
@@ -300,6 +306,7 @@ function ReportingBody({ data, isAdmin }) {
           />
         </section>
       </div>
+      )}
 
       <section className="card">
         <div className="card-header">

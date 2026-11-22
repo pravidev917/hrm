@@ -401,7 +401,9 @@ function EmployeeDashboard() {
         </dl>
       </section>
 
-      <ReportingPanel />
+      {/* This dashboard leaves out "Sourced profiles by employee" and
+          "Daily sourcing trend"; both stay on the admin dashboard. */}
+      <ReportingPanel showSourcedProfiles={false} />
     </>
   )
 }
