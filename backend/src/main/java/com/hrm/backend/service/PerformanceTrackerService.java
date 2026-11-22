@@ -59,17 +59,20 @@ public class PerformanceTrackerService {
     private final DailyReportRepository dailyReportRepository;
     private final WeeklyReportRepository weeklyReportRepository;
     private final NoteRepository noteRepository;
+    private final CompanyTimeService companyTime;
 
     public PerformanceTrackerService(
             EmployeeRepository employeeRepository,
             DailyReportRepository dailyReportRepository,
             WeeklyReportRepository weeklyReportRepository,
-            NoteRepository noteRepository) {
+            NoteRepository noteRepository,
+            CompanyTimeService companyTime) {
 
         this.employeeRepository = employeeRepository;
         this.dailyReportRepository = dailyReportRepository;
         this.weeklyReportRepository = weeklyReportRepository;
         this.noteRepository = noteRepository;
+        this.companyTime = companyTime;
     }
 
     /* --------------------------- ADMIN: one month --------------------------- */
@@ -256,9 +259,12 @@ public class PerformanceTrackerService {
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.NOT_FOUND, "Employee account not found"));
 
-        LocalDate day = date == null ? LocalDate.now() : date;
+        // "Today" is the office day, not the UTC container day.
+        LocalDate today = companyTime.todayForEmployee(employee);
 
-        if (day.isAfter(LocalDate.now())) {
+        LocalDate day = date == null ? today : date;
+
+        if (day.isAfter(today)) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, "A future date has no performance yet");
         }

@@ -10,6 +10,7 @@ import com.hrm.backend.repository.ClientRepository;
 import com.hrm.backend.repository.DailyReportPlatformCountRepository;
 import com.hrm.backend.repository.DailyReportRepository;
 import com.hrm.backend.repository.EmployeeRepository;
+import com.hrm.backend.repository.OfficeLocationRepository;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,6 +44,7 @@ class DailyReportPipelineRuleTests {
     private EmployeeRepository employeeRepository;
     private ClientRepository clientRepository;
     private DailyReportService service;
+    private CompanyTimeService companyTime;
     private Employee employee;
     private Client client;
 
@@ -54,12 +56,16 @@ class DailyReportPipelineRuleTests {
 
         platformCountRepository = mock(DailyReportPlatformCountRepository.class);
 
+        companyTime = new CompanyTimeService(
+                mock(OfficeLocationRepository.class), "Asia/Kolkata");
+
         service = new DailyReportService(
                 reportRepository,
                 platformCountRepository,
                 employeeRepository,
                 clientRepository,
-                mock(CompanyScopeService.class));
+                mock(CompanyScopeService.class),
+                companyTime);
 
         Company company = new Company();
         company.setCompanyId(1L);
@@ -260,5 +266,42 @@ class DailyReportPipelineRuleTests {
                 () -> service.createReportForEmployee(1L, 10L, 20L, report(5, 2, 1, 1)));
 
         assertTrue(error.getMessage().contains("not approved and active"));
+    }
+
+    /**
+     * The container runs in UTC while the office runs in IST, so between 00:00 and
+     * 05:30 IST the server's date is still yesterday. A report filed for the office's
+     * "today" must be accepted even though the server clock calls it a future date.
+     */
+    @Test
+    void theOfficeDayIsNotAFutureDateEvenWhenTheServerClockIsBehind() {
+        CompanyTimeService officeClock = mock(CompanyTimeService.class);
+
+        DailyReportService zonedService = new DailyReportService(
+                reportRepository,
+                platformCountRepository,
+                employeeRepository,
+                clientRepository,
+                mock(CompanyScopeService.class),
+                officeClock);
+
+        LocalDate officeToday = LocalDate.now().plusDays(1);
+        when(officeClock.todayForEmployee(any(Employee.class))).thenReturn(officeToday);
+
+        DailyReport request = report(5, 2, 1, 1);
+        request.setReportDate(officeToday);
+
+        var saved = zonedService.createReport(10L, 20L, request);
+
+        assertEquals(officeToday, saved.getReportDate());
+
+        DailyReport tomorrow = report(5, 2, 1, 1);
+        tomorrow.setReportDate(officeToday.plusDays(1));
+
+        RuntimeException error = assertThrows(
+                RuntimeException.class,
+                () -> zonedService.createReport(10L, 20L, tomorrow));
+
+        assertTrue(error.getMessage().contains("Future report dates are not allowed"));
     }
 }

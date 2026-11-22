@@ -33,19 +33,22 @@ public class DailyReportService {
     private final EmployeeRepository employeeRepository;
     private final ClientRepository clientRepository;
     private final CompanyScopeService companyScope;
+    private final CompanyTimeService companyTime;
 
     public DailyReportService(
             DailyReportRepository reportRepository,
             DailyReportPlatformCountRepository platformCountRepository,
             EmployeeRepository employeeRepository,
             ClientRepository clientRepository,
-            CompanyScopeService companyScope) {
+            CompanyScopeService companyScope,
+            CompanyTimeService companyTime) {
 
         this.reportRepository = reportRepository;
         this.platformCountRepository = platformCountRepository;
         this.employeeRepository = employeeRepository;
         this.clientRepository = clientRepository;
         this.companyScope = companyScope;
+        this.companyTime = companyTime;
     }
 
     /** Compares the companies of an employee and a client, not their creators. */
@@ -106,14 +109,16 @@ public class DailyReportService {
         }
     }
 
-    // Validate report date
-    private void validateReportDate(LocalDate reportDate) {
+    // Validate report date against the office calendar. The container runs in UTC, so
+    // LocalDate.now() is a day behind the office during the 00:00-05:30 IST window and
+    // rejects a report filed for "today".
+    private void validateReportDate(LocalDate reportDate, Employee employee) {
 
         if (reportDate == null) {
             throw new RuntimeException("Report date is required");
         }
 
-        if (reportDate.isAfter(LocalDate.now())) {
+        if (reportDate.isAfter(companyTime.todayForEmployee(employee))) {
             throw new RuntimeException(
                     "Future report dates are not allowed");
         }
@@ -289,7 +294,7 @@ public class DailyReportService {
                     "Cannot submit report for inactive client");
         }
 
-        validateReportDate(request.getReportDate());
+        validateReportDate(request.getReportDate(), employee);
 
         Integer profiles = request.getProfilesSubmitted() == null
                 ? 0 : request.getProfilesSubmitted();
@@ -534,7 +539,7 @@ public class DailyReportService {
                 ? request.getReportDate()
                 : existing.getReportDate();
 
-        validateReportDate(newDate);
+        validateReportDate(newDate, existing.getEmployee());
 
         Integer profiles = request.getProfilesSubmitted() != null
                 ? request.getProfilesSubmitted()

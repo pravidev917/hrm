@@ -35,17 +35,20 @@ public class WeeklyReportService {
     private final EmployeeRepository employeeRepository;
     private final AdminRepository adminRepository;
     private final ClientRepository clientRepository;
+    private final CompanyTimeService companyTime;
 
     public WeeklyReportService(
             WeeklyReportRepository repository,
             EmployeeRepository employeeRepository,
             AdminRepository adminRepository,
-            ClientRepository clientRepository) {
+            ClientRepository clientRepository,
+            CompanyTimeService companyTime) {
 
         this.repository = repository;
         this.employeeRepository = employeeRepository;
         this.adminRepository = adminRepository;
         this.clientRepository = clientRepository;
+        this.companyTime = companyTime;
     }
 
     private Employee getApprovedEmployee(Long employeeId) {
@@ -127,13 +130,14 @@ public class WeeklyReportService {
         }
     }
 
-    private LocalDate[] getWeekPeriod(LocalDate reportDate) {
+    private LocalDate[] getWeekPeriod(LocalDate reportDate, Employee employee) {
 
         if (reportDate == null) {
             throw new RuntimeException("Report date is required");
         }
 
-        if (reportDate.isAfter(LocalDate.now())) {
+        // Office calendar, not the UTC container clock: see DailyReportService.
+        if (reportDate.isAfter(companyTime.todayForEmployee(employee))) {
             throw new RuntimeException("Future report dates are not allowed");
         }
 
@@ -239,7 +243,7 @@ public class WeeklyReportService {
 
         Employee employee = getApprovedEmployee(employeeId);
 
-        LocalDate[] period = getWeekPeriod(request.getReportDate());
+        LocalDate[] period = getWeekPeriod(request.getReportDate(), employee);
 
         WeeklyReport report = new WeeklyReport();
 
@@ -301,7 +305,7 @@ public class WeeklyReportService {
 
         if (request.getReportDate() != null) {
 
-            LocalDate[] period = getWeekPeriod(request.getReportDate());
+            LocalDate[] period = getWeekPeriod(request.getReportDate(), report.getEmployee());
 
             if (!report.getWeekStartDate().equals(period[0]) ||
                 !report.getWeekEndDate().equals(period[1])) {
@@ -386,7 +390,7 @@ public class WeeklyReportService {
 
         if (request.getReportDate() != null) {
 
-            LocalDate[] period = getWeekPeriod(request.getReportDate());
+            LocalDate[] period = getWeekPeriod(request.getReportDate(), report.getEmployee());
 
             if (!report.getWeekStartDate().equals(period[0]) ||
                 !report.getWeekEndDate().equals(period[1])) {

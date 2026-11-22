@@ -9,6 +9,7 @@ import com.hrm.backend.entity.WeeklyReport;
 import com.hrm.backend.repository.AdminRepository;
 import com.hrm.backend.repository.ClientRepository;
 import com.hrm.backend.repository.EmployeeRepository;
+import com.hrm.backend.repository.OfficeLocationRepository;
 import com.hrm.backend.repository.WeeklyReportRepository;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -40,17 +41,24 @@ class WeeklyReportServiceTests {
 
     private WeeklyReportRepository repository;
     private WeeklyReportService service;
+    private CompanyTimeService companyTime;
+    private EmployeeRepository employeeRepository;
+    private AdminRepository adminRepository;
+    private ClientRepository clientRepository;
     private Employee employee;
 
     @BeforeEach
     void setUp() {
         repository = mock(WeeklyReportRepository.class);
-        EmployeeRepository employeeRepository = mock(EmployeeRepository.class);
-        AdminRepository adminRepository = mock(AdminRepository.class);
-        ClientRepository clientRepository = mock(ClientRepository.class);
+        employeeRepository = mock(EmployeeRepository.class);
+        adminRepository = mock(AdminRepository.class);
+        clientRepository = mock(ClientRepository.class);
+
+        companyTime = new CompanyTimeService(
+                mock(OfficeLocationRepository.class), "Asia/Kolkata");
 
         service = new WeeklyReportService(
-                repository, employeeRepository, adminRepository, clientRepository);
+                repository, employeeRepository, adminRepository, clientRepository, companyTime);
 
         Company company = new Company();
         company.setCompanyId(1L);
@@ -128,6 +136,31 @@ class WeeklyReportServiceTests {
     void aFutureWeekIsStillRejected() {
         RuntimeException error = assertThrows(RuntimeException.class,
                 () -> service.createReport(10L, request(LocalDate.now().plusWeeks(1), 1, 10)));
+
+        assertTrue(error.getMessage().toLowerCase().contains("future"));
+    }
+
+    /**
+     * Same UTC-versus-IST trap as the daily report: the week containing the office's
+     * "today" must be accepted while the server clock is still on yesterday.
+     */
+    @Test
+    void theOfficeWeekIsNotRejectedWhenTheServerClockIsBehind() {
+        CompanyTimeService officeClock = mock(CompanyTimeService.class);
+        WeeklyReportService zonedService = new WeeklyReportService(
+                repository, employeeRepository, adminRepository, clientRepository, officeClock);
+
+        LocalDate officeToday = LocalDate.now().plusDays(1);
+        when(officeClock.todayForEmployee(any(Employee.class))).thenReturn(officeToday);
+
+        var report = zonedService.createReport(10L, request(officeToday, 2, 10));
+
+        assertEquals(
+                officeToday.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)),
+                report.getWeekStartDate());
+
+        RuntimeException error = assertThrows(RuntimeException.class,
+                () -> zonedService.createReport(10L, request(officeToday.plusWeeks(1), 2, 10)));
 
         assertTrue(error.getMessage().toLowerCase().contains("future"));
     }
