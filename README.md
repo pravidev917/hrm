@@ -144,6 +144,7 @@ frontend/                React 19 + Vite
 docs/
   migrations/*.sql       the schema, in order - the source of truth
   *.md                   feature notes (attendance/WFH, reporting, companies, exports)
+  DEPLOY-RENDER-RAILWAY-NEON.md  the production deployment runbook
 postman/                 ready-made API requests
 .github/workflows/ci.yml builds and tests every push
 ```
