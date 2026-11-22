@@ -73,6 +73,31 @@ public class DailyReportService {
             throw new RuntimeException(
                     "Connected count cannot exceed candidates contacted");
         }
+
+        // The pipeline rule: every later stage is drawn from the profiles that were
+        // sourced, so no single stage may be larger than candidatesSourced.
+        // 20 sourced / 15 submitted / 8 connected / 4 selected is fine;
+        // 10 sourced / 15 submitted is not.
+        if (profilesSubmitted > candidatesSourced) {
+            throw new RuntimeException(
+                    "Profiles submitted (" + profilesSubmitted
+                            + ") cannot be more than candidates sourced (" + candidatesSourced
+                            + ")");
+        }
+
+        if (candidatesContacted > candidatesSourced) {
+            throw new RuntimeException(
+                    "Candidates contacted (" + candidatesContacted
+                            + ") cannot be more than candidates sourced (" + candidatesSourced
+                            + ")");
+        }
+
+        if (connectedCount > candidatesSourced) {
+            throw new RuntimeException(
+                    "Connected count (" + connectedCount
+                            + ") cannot be more than candidates sourced (" + candidatesSourced
+                            + ")");
+        }
     }
 
     // Validate report date
@@ -115,6 +140,8 @@ public class DailyReportService {
                 report.getDailyReportId(),
                 report.getEmployee().getEmployeeId(),
                 report.getEmployee().getEmployeeName(),
+                report.getEmployee().getEmployeeCode(),
+                report.getEmployee().getRole(),
                 report.getClient().getClientId(),
                 report.getClient().getClientName(),
                 report.getProfilesSubmitted(),
@@ -156,16 +183,22 @@ public class DailyReportService {
                 if (name == null) {
                     throw new RuntimeException("Choose a sourcing platform for every profile count");
                 }
-                if (name.length() > 80) {
-                    throw new RuntimeException("Sourcing platform cannot exceed 80 characters");
+                // Fold retired spellings (Indeed, Referral, Company Website, Other)
+                // into the five canonical platforms instead of storing a name no
+                // chart or table would show.
+                String canonicalName = SourcingPlatforms.canonical(name).orElse(null);
+                if (canonicalName == null) {
+                    throw new RuntimeException(
+                            "Unknown sourcing platform \"" + name + "\". Use: "
+                                    + SourcingPlatforms.allowedList());
                 }
-                merged.merge(name, count, Integer::sum);
+                merged.merge(canonicalName, count, Integer::sum);
             }
         }
 
         // Backwards-compatible single-platform payload.
         if (merged.isEmpty() && single != null && sourced > 0) {
-            merged.put(single, sourced);
+            merged.put(SourcingPlatforms.canonicalOrOthers(single), sourced);
         }
 
         int platformTotal = merged.values().stream().mapToInt(Integer::intValue).sum();
@@ -196,6 +229,36 @@ public class DailyReportService {
         return value.trim();
     }
 
+    /**
+     * An administrator files a daily report on behalf of one of their employees.
+     *
+     * Same rules as an employee filing it: the employee must belong to the
+     * administrator's company and be active, counts must satisfy the pipeline rule and
+     * a second report for the same employee and day is refused.
+     */
+    @Transactional
+    public DailyReportResponseDTO createReportForEmployee(
+            Long adminId,
+            Long employeeId,
+            Long clientId,
+            DailyReport request) {
+
+        Employee employee = employeeRepository.findById(employeeId)
+                .orElseThrow(() ->
+                        new RuntimeException("Employee not found"));
+
+        companyScope.requireManages(adminId, employee);
+
+        // APPROVED is the status an employee must have to sign in, so it is also the
+        // status that allows a report to be filed for them.
+        if (!"APPROVED".equals(employee.getAccountStatus())) {
+            throw new RuntimeException(
+                    "Cannot file a report for an employee whose account is not approved and active");
+        }
+
+        return createForEmployee(employee, clientId, request);
+    }
+
     // Submit daily report
     @Transactional
     public DailyReportResponseDTO createReport(
@@ -206,6 +269,16 @@ public class DailyReportService {
         Employee employee = employeeRepository.findById(employeeId)
                 .orElseThrow(() ->
                         new RuntimeException("Employee not found"));
+
+        return createForEmployee(employee, clientId, request);
+    }
+
+    private DailyReportResponseDTO createForEmployee(
+            Employee employee,
+            Long clientId,
+            DailyReport request) {
+
+        Long employeeId = employee.getEmployeeId();
 
         Client client = clientRepository.findById(clientId)
                 .orElseThrow(() ->

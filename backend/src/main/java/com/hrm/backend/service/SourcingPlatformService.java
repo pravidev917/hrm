@@ -23,8 +23,8 @@ import java.util.Locale;
 @Service
 public class SourcingPlatformService {
 
-    private static final List<String> DEFAULTS = List.of(
-            "LinkedIn", "Naukri", "Indeed", "Referral", "Company Website", "Other");
+    /** The five platforms every form, table and chart offers, in display order. */
+    private static final List<String> DEFAULTS = SourcingPlatforms.CANONICAL;
 
     private final SourcingPlatformRepository repository;
     private final CompanyScopeService companyScope;

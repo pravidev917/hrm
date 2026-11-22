@@ -343,13 +343,17 @@ public class ReportingService {
 
         return new DailyReportsSection(
                 eligible, reports.size(), sourced, missing, days,
-                "Expected reports are weekdays (Mon-Fri), excluding days covered by approved leave. "
+                "Expected reports are working days (Monday to Saturday), excluding days covered by approved leave. "
                         + "Missing reports are shown as missing, not as zero productivity; employees are counted only once they have at least one report in the range.");
     }
 
+    /**
+     * Saturday is a working day in this company: only Sunday is a weekly holiday.
+     * Expected-report counts therefore include Saturday, and a missing Saturday
+     * report is shown as missing like any other working day.
+     */
     private boolean isWorkingDay(LocalDate date) {
-        return date.getDayOfWeek() != DayOfWeek.SATURDAY
-                && date.getDayOfWeek() != DayOfWeek.SUNDAY;
+        return date.getDayOfWeek() != DayOfWeek.SUNDAY;
     }
 
     private boolean onLeave(Long employeeId, LocalDate date, List<LeaveManagement> leaves) {

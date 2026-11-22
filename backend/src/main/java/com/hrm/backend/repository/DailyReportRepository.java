@@ -73,6 +73,33 @@ public interface DailyReportRepository extends JpaRepository<DailyReport, Long> 
             @Param("endDate") LocalDate endDate
     );
 
+    /**
+     * Every report of the company in a date range with the employee and the
+     * per-platform counts loaded, so analytics can read them after the transaction.
+     */
+    @Query("""
+            SELECT DISTINCT r FROM DailyReport r
+              JOIN FETCH r.employee e
+              LEFT JOIN FETCH r.platformCounts pc
+            WHERE e.admin.company.companyId =
+                  (SELECT adm.company.companyId FROM Admin adm WHERE adm.adminId = :adminId)
+              AND r.reportDate BETWEEN :startDate AND :endDate
+            ORDER BY r.reportDate ASC
+            """)
+    List<DailyReport> findForAnalyticsInCompanyOf(
+            @Param("adminId") Long adminId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
+    );
+
+    /** First day the company ever filed a daily report; empty when there are none. */
+    @Query("""
+            SELECT MIN(r.reportDate) FROM DailyReport r
+            WHERE r.employee.admin.company.companyId =
+                  (SELECT adm.company.companyId FROM Admin adm WHERE adm.adminId = :adminId)
+            """)
+    Optional<LocalDate> findFirstReportDateInCompanyOf(@Param("adminId") Long adminId);
+
     // Cascade cleanup when an administrator deletes an employee.
     long deleteByEmployeeEmployeeId(Long employeeId);
 

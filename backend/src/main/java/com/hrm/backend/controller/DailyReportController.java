@@ -128,6 +128,24 @@ public class DailyReportController {
     // ADMIN DAILY REPORTS
     // =========================
 
+    /**
+     * An administrator files a report for one of their employees (the "Add New"
+     * action of the daily reports table). The employee is named in the body.
+     */
+    @PostMapping("/admin/reports")
+    public ResponseEntity<DailyReportResponseDTO> createReportForEmployee(
+            @RequestParam Long employeeId,
+            @RequestParam Long clientId,
+            @RequestBody DailyReport report,
+            Authentication authentication) {
+
+        Long adminId = adminService.getAdminIdByEmail(authentication.getName());
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(reportService.createReportForEmployee(
+                        adminId, employeeId, clientId, report));
+    }
+
     @GetMapping("/admin/reports")
     public ResponseEntity<List<DailyReportResponseDTO>> getAdminReports(
             Authentication authentication) {

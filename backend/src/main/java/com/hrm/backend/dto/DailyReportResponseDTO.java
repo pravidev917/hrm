@@ -9,6 +9,10 @@ public class DailyReportResponseDTO {
     private Long dailyReportId;
     private Long employeeId;
     private String employeeName;
+    /** Employee code (EMP001) - the "Employee ID" column of the reports table. */
+    private String employeeCode;
+    /** Employee designation - the "Designation" column of the reports table. */
+    private String employeeDesignation;
     private Long clientId;
     private String clientName;
     private Integer profilesSubmitted;
@@ -27,6 +31,8 @@ public class DailyReportResponseDTO {
             Long dailyReportId,
             Long employeeId,
             String employeeName,
+            String employeeCode,
+            String employeeDesignation,
             Long clientId,
             String clientName,
             Integer profilesSubmitted,
@@ -41,6 +47,8 @@ public class DailyReportResponseDTO {
         this.dailyReportId = dailyReportId;
         this.employeeId = employeeId;
         this.employeeName = employeeName;
+        this.employeeCode = employeeCode;
+        this.employeeDesignation = employeeDesignation;
         this.clientId = clientId;
         this.clientName = clientName;
         this.profilesSubmitted = profilesSubmitted;
@@ -63,6 +71,14 @@ public class DailyReportResponseDTO {
 
     public String getEmployeeName() {
         return employeeName;
+    }
+
+    public String getEmployeeCode() {
+        return employeeCode;
+    }
+
+    public String getEmployeeDesignation() {
+        return employeeDesignation;
     }
 
     public Long getClientId() {
